@@ -1,13 +1,4 @@
-import numpy as np
-import pandas as pd
-from config import Config
 from util import *
-
-import torch
-from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import StratifiedKFold, KFold
-from tqdm import tqdm
 
 
 class Freesound(Dataset):
@@ -63,22 +54,21 @@ class Freesound(Dataset):
 
 
 class FreesoundLogmel(Dataset):
-    def __init__(self, config, frame, mode, transform=None):
+    def __init__(self, config, frame, X, mode, transform=None):
         self.config = config
         self.frame = frame
         self.transform = transform
         self.mode = mode
+        self.X = X
 
     def __len__(self):
         return self.frame.shape[0]
 
     def __getitem__(self, idx):
-        filename = os.path.splitext(self.frame["fname"][idx])[0] + '.pkl'
-
-        file_path = os.path.join(self.config.features_dir, filename)
+        fname = self.frame["fname"][idx]
 
         # Read and Resample the audio
-        data = self._random_selection(file_path)
+        data = self._random_selection(fname)
 
         if self.transform is not None:
             data = self.transform(data)
@@ -92,11 +82,11 @@ class FreesoundLogmel(Dataset):
         if self.mode is "test":
             return data
 
-    def _random_selection(self, file_path):
+    def _random_selection(self, fname):
 
         input_frame_length = int(self.config.audio_duration * 1000 / self.config.frame_shift)
-        # Read the logmel pkl
-        logmel = load_data(file_path)
+
+        logmel = self.X[fname]
 
         # Random offset / Padding
         if logmel.shape[2] > input_frame_length:
@@ -204,17 +194,36 @@ class ToTensor(object):
         return data
 
 
-def multilabel_to_onehot(labels, label_idx, num_class=80):
-    """
-    :param labels: multi-label separated by comma.
-    :param num_class: number of classes, length of one-hot label.
-    :return: one-hot label, such as [0, 1, 0, 0, 1,...]
-    """
-    # one_hot = np.zeros(num_class)
-    one_hot = torch.zeros(num_class)
-    for l in labels.split(','):
-        one_hot[label_idx[l]] = 1.0
-    return one_hot
+def get_data_loader(df_train, X, skf, foldNum, config):
+
+    # Get the nth item of a generator
+    train_split, val_split = next(itertools.islice(skf.split(df_train), foldNum, foldNum + 1))
+
+    train_set = df_train.iloc[train_split]
+    train_set = train_set.reset_index(drop=True)
+    val_set = df_train.iloc[val_split]
+    val_set = val_set.reset_index(drop=True)
+    logging.info("Fold {0}, Train samples:{1}, val samples:{2}"
+                 .format(foldNum, len(train_set), len(val_set)))
+
+    # define train loader and val loader
+    trainSet = FreesoundLogmel(config=config, frame=train_set, X=X,
+                               transform=transforms.Compose([ToTensor()]),
+                               mode="train")
+    # trainSet = Freesound_logmel_discontinuous(config=config, frame=train_set, order=True,
+    #                      transform=transforms.Compose([ToTensor()]),
+    #                      mode="train")
+    train_loader = DataLoader(trainSet, batch_size=config.batch_size, shuffle=True, num_workers=4)
+
+    valSet = FreesoundLogmel(config=config, frame=val_set, X=X,
+                             transform=transforms.Compose([ToTensor()]),
+                             mode="train")
+    # valSet = Freesound_logmel_discontinuous(config=config, frame=val_set, order=True,
+    #                      transform=transforms.Compose([ToTensor()]),
+    #                      mode="train")
+    val_loader = DataLoader(valSet, batch_size=config.batch_size, shuffle=False, num_workers=4)
+
+    return train_loader, val_loader
 
 
 if __name__ == "__main__":

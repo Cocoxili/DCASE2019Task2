@@ -13,7 +13,7 @@ class Config(object):
                  train_curated_dir='../input/train_curated',
                  train_noisy_dir='../input/train_noisy',
                  test_dir='../input/test',
-                 features_dir='../input/features/logmel+delta_w80_s10_m64',
+                 features_dir='../features/logmel+delta_w80_s10_m64',
                  model_dir='../model',
                  prediction_dir='../prediction',
                  arch='resnet101_m', pretrain=False,

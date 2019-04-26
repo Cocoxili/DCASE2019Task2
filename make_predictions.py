@@ -1,8 +1,6 @@
 
 from util import *
 from data_loader import *
-from tqdm import tqdm
-import torch.nn.functional as F
 
 
 def make_prediction_files(input, order=True, mean_method='arithmetic'):
@@ -146,7 +144,7 @@ def predict_one_model_with_wave(checkpoint, frame):
             output = model(data)
             output = torch.sum(output, dim=0, keepdim=True)
 
-            output = F.softmax(output, dim=1)
+            output = torch.softmax(output, dim=1)
 
             prediction = torch.cat((prediction, output), dim=0)
 
@@ -207,6 +205,7 @@ def predict_one_model_with_logmel(checkpoint, frame):
 
             output = model(data)
             output = torch.sum(output, dim=0, keepdim=True)
+            output = torch.softmax(output, dim=1)
 
             prediction = torch.cat((prediction, output), dim=0)
 
@@ -315,7 +314,7 @@ if __name__ == "__main__":
                    audio_duration=1.5,
                    batch_size=128,
                    n_folds=5,
-                   features_dir="../input/features/logmel+delta_w80_s10_m64",
+                   features_dir="../features/logmel+delta_w80_s10_m64",
                    model_dir='../model/logmel_delta_resnet50',
                    prediction_dir='../prediction/logmel_delta_resnet50',
                    arch='resnet50_mfcc',

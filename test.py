@@ -6,78 +6,18 @@ from util import *
 from scipy.sparse import csr_matrix
 from scipy.stats import rankdata
 
-def label_ranking_average_precision_score(y_true, y_score, sample_weight=None):
-    """Compute ranking-based average precision
-    Label ranking average precision (LRAP) is the average over each ground
-    truth label assigned to each sample, of the ratio of true vs. total
-    labels with lower score.
-    This metric is used in multilabel ranking problem, where the goal
-    is to give better rank to the labels associated to each sample.
-    The obtained score is always strictly greater than 0 and
-    the best value is 1.
-    Read more in the :ref:`User Guide <label_ranking_average_precision>`.
-    Parameters
-    ----------
-    y_true : array or sparse matrix, shape = [n_samples, n_labels]
-        True binary labels in binary indicator format.
-    y_score : array, shape = [n_samples, n_labels]
-        Target scores, can either be probability estimates of the positive
-        class, confidence values, or non-thresholded measure of decisions
-        (as returned by "decision_function" on some classifiers).
-    sample_weight : array-like of shape = [n_samples], optional
-        Sample weights.
-    Returns
-    -------
-    score : float
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from sklearn.metrics import label_ranking_average_precision_score
-    >>> y_true = np.array([[1, 0, 0], [0, 0, 1]])
-    >>> y_score = np.array([[0.75, 0.5, 1], [1, 0.2, 0.1]])
-    >>> label_ranking_average_precision_score(y_true, y_score) \
-        # doctest: +ELLIPSIS
-    0.416...
-    """
+from psutil import cpu_count
 
-    y_true = csr_matrix(y_true)
-    y_score = -y_score
-    n_samples, n_labels = y_true.shape
-    out = 0.
-    for i, (start, stop) in enumerate(zip(y_true.indptr, y_true.indptr[1:])):
-        relevant = y_true.indices[start:stop]
+truth = np.array([[0, 0, 1, 1, 0], [1,0,0,0,0]])
+pred = np.array([[1,2,3,4,2],[6,1,3,4,5]])
+pred2 = np.array([[2,3,5,7,9],[4,2,5,6,7]])
 
-        if (relevant.size == 0 or relevant.size == n_labels):
-            # If all labels are relevant or unrelevant, the score is also
-            # equal to 1. The label ranking has no meaning.
-            out += 1.
-            continue
+print(calculate_lwlrap(truth, pred))
+print(calculate_lwlrap(truth, pred2))
 
-        scores_i = y_score[i]
-        rank = rankdata(scores_i, 'max')[relevant]
-        L = rankdata(scores_i[relevant], 'max')
-        aux = (L / rank).mean()
-        if sample_weight is not None:
-            aux = aux * sample_weight[i]
-        out += aux
-
-    if sample_weight is None:
-        out /= n_samples
-    else:
-        print(out)
-        out /= np.sum(sample_weight)
-
-    return out
-
-
-y_true = np.array([[1, 0, 0], [0, 0, 1]])
-y_score = np.array([[0.75, 0.5, 1], [1, 0.2, 0.1]])
-print(y_true)
-print(y_score)
-sw = [3, 2]
-
-lrap = label_ranking_average_precision_score(y_true, y_score, sw)
-print(lrap)
+a = torch.Tensor([-14.1])
+b = torch.sigmoid(a)
+print(b)
 '''
 from sklearn.model_selection import KFold, StratifiedKFold
 X = np.array([[1, 2], [3, 4], [1, 2], [3, 4]])

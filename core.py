@@ -35,37 +35,13 @@ def train_on_fold(model, train_criterion, val_criterion,
                 # 'model': model,
                 'state_dict': model.state_dict(),
                 'best_lwlrap': best_lwlrap,
-                'optimizer': optimizer.state_dict(),
+                # 'optimizer': optimizer.state_dict(),
             }, is_best, fold, config,
             filename=config.model_dir + '/checkpoint.pth.tar')
 
     logging.info(' *** Best lwlrap {lwlrap:.3f}'
                  .format(lwlrap=best_lwlrap))
-
-
-def train_all_data(model, train_criterion, optimizer, train_loader, config, fold):
-    model.train()
-
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.1)  # for logmel
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
-    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
-
-    for epoch in range(config.epochs):
-
-        exp_lr_scheduler.step()
-        # train for one epoch
-        prec1, prec3 = train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch)
-
-    save_checkpoint({
-        'epoch': epoch + 1,
-        'arch': config.arch,
-        # 'model': model,
-        'state_dict': model.state_dict(),
-        'best_prec1': prec1,
-        'optimizer': optimizer.state_dict(),
-    }, True, fold, config,
-        filename=config.model_dir + '/checkpoint.pth.tar')
+    return best_lwlrap
 
 
 def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epoch):
@@ -114,38 +90,38 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
         end = time.time()
 
         if i % config.print_freq == 0:
-            logging.info('F{fold} E{epoch} lr:{lr:.4g} '
-                  'Time {batch_time.val:.1f}({batch_time.avg:.1f}) '
-                  'Data {data_time.val:.1f}({data_time.avg:.1f}) '
-                  'Loss {loss.avg:.2f}'.format(
-                i, len(train_loader), fold=fold, epoch=epoch,
-                lr=optimizer.param_groups[0]['lr'], batch_time=batch_time,
-                data_time=data_time, loss=losses))
-
-    return top1.avg, top3.avg
+            logging.info('F{fold} E{epoch} lr:{lr:.2e} '
+                         'Time {batch_time.val:.1f}({batch_time.avg:.1f}) '
+                         'Data {data_time.val:.1f}({data_time.avg:.1f}) '
+                         'Loss {loss.avg:.3f}'.format(
+                            i, len(train_loader), fold=fold, epoch=epoch,
+                            lr=optimizer.param_groups[0]['lr'], batch_time=batch_time,
+                            data_time=data_time, loss=losses))
 
 
 def val_on_fold(model, criterion, val_loader, config, fold):
     batch_time = AverageMeter()
     losses = AverageMeter()
 
-    pred_all = torch.zeros(len(val_loader.dataset), config.num_classes)
-    target_all = torch.zeros(len(val_loader.dataset), config.num_classes)
+    pred_all = torch.zeros(1, config.num_classes)
+    target_all = torch.zeros(1, config.num_classes)
+
+    if config.cuda:
+        pred_all, target_all = pred_all.cuda(), target_all.cuda()
 
     # switch to evaluate mode
     model.eval()
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
-            target_all[i*target.size(0):(i+1)*target.size(0)] = target
-
             if config.cuda:
                 input, target = input.cuda(), target.cuda(non_blocking=True)
 
+            target_all = torch.cat((target_all, target))
+
             # compute output
             output = model(input)
-            pred_all[i*target.size(0):(i+1)*target.size(0)] = output
-
+            pred_all = torch.cat((pred_all, output))
             loss = criterion(output, target)
             # record loss
             losses.update(loss.item(), input.size(0))
@@ -157,13 +133,11 @@ def val_on_fold(model, criterion, val_loader, config, fold):
             if i % config.print_freq == 0:
                 logging.info('Test. '
                              'Time {batch_time.val:.1f} '
-                             'Loss {loss.avg:.2f}'
+                             'Loss {loss.avg:.3f}'
                              .format(batch_time=batch_time, loss=losses))
 
-    lwlrap = calculate_lwlrap(target_all.numpy(), pred_all.numpy())
-
-    logging.info(' * lwlrap {lwlrap:.3f}'
-                 .format(lwlrap=lwlrap))
+    lwlrap = calculate_lwlrap(target_all.cpu().numpy(), pred_all.cpu().numpy())
+    logging.info(' * lwlrap {lwlrap:.3f}'.format(lwlrap=lwlrap))
 
     return lwlrap
 

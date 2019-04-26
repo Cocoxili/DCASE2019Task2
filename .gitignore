@@ -10,6 +10,8 @@ __pycache__/
 # pyCharm files
 .idea/
 
+# *.ipynb
 .ipynb_checkpoints/
 
 *.pdf
+test.py

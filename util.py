@@ -1,14 +1,23 @@
 import torch
+from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
+import torch.optim as optim
+import torch.backends.cudnn as cudnn
 import numpy as np
+import pandas as pd
 import shutil
 import pickle
 import librosa
 import logging
 import os
 from networks import *
+from config import Config
 import math
-import pandas as pd
+from sklearn.model_selection import StratifiedKFold, KFold
 import sklearn.metrics
+from tqdm import tqdm
+import time
+import itertools
 
 
 def save_data(filename, data):
@@ -144,6 +153,19 @@ def make_one_hot(target, num_class=41):
     """
     assert isinstance(target, torch.LongTensor)
     return torch.zeros(target.size()[0], num_class).scatter_(1, target.view(-1, 1), 1)
+
+
+def multilabel_to_onehot(labels, label_idx, num_class=80):
+    """
+    :param labels: multi-label separated by comma.
+    :param num_class: number of classes, length of one-hot label.
+    :return: one-hot label, such as [0, 1, 0, 0, 1,...]
+    """
+    # one_hot = np.zeros(num_class)
+    one_hot = torch.zeros(num_class)
+    for l in labels.split(','):
+        one_hot[label_idx[l]] = 1.0
+    return one_hot
 
 
 def cross_entropy_onehot(input, target, size_average=True):
