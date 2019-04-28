@@ -12,9 +12,10 @@ def train_on_fold(model, train_criterion, val_criterion,
     best_lwlrap = 0
 
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.1)  # for logmel
+    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 75, 90, 105], gamma=0.7)  # for logmel
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
-    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
+    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=1e-5)
+    # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-5)
 
     for epoch in range(config.epochs):
         exp_lr_scheduler.step()

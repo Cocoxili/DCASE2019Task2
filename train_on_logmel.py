@@ -13,13 +13,17 @@ def seed_everything(seed):
 
 def define_model():
     # model = resnet50_mfcc()
-    model = mobilenet_v2(num_classes=config.num_classes)
-    return model
-    # return Classifier(num_classes=config.num_classes)
+    # model = mobilenet_v2(num_classes=config.num_classes)
+    # return model
+    return Classifier(num_classes=config.num_classes)
 
 
-def main():
+def train():
     df_train = pd.read_csv(config.CSV_TRAIN_CURATED)
+
+    df_train_noisy = pd.read_csv(config.CSV_TRAIN_NOISY)
+    df_train = pd.concat([df_train, df_train_noisy], sort=True)
+
     LABELS = config.labels
     label_idx = {label: i for i, label in enumerate(LABELS)}
     df_train.set_index("fname")
@@ -27,6 +31,9 @@ def main():
     df_train.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
+
+    X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy.pkl'))
+    X.update(X_nosiy)
 
     if config.debug:
         df_train = df_train[:500]
@@ -72,20 +79,23 @@ def main():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
-    config = Config(sampling_rate=44100,
+    config = Config(
+                    csv_train_noisy='./trn_noisy_best50s.csv',
+                    # csv_train_noisy='../input/train_noisy.csv',
+                    sampling_rate=44100,
                     audio_duration=1.5,
                     n_mels=128,
                     frame_weigth=100,
-                    frame_shift=20,
-                    batch_size=256,
+                    frame_shift=10,
+                    batch_size=128,
                     n_folds=5,
-                    features_dir="../features/logmel_w100_s20_m128",
-                    model_dir='../model/mobileNetv2_test3',
+                    features_dir="../features/logmel_w100_s10_m128",
+                    model_dir='../model/mobileNetv2_test2',
                     # prediction_dir='../prediction/mobileNetv2_test1',
                     arch='resnet50_mfcc',
-                    lr=3e-3,
+                    lr=1e-3,
                     pretrain=True,
                     mixup=False,
                     #  epochs=100)
@@ -98,4 +108,4 @@ if __name__ == "__main__":
     attrs = '\n'.join('%s:%s' % item for item in vars(config).items())
     logging.info(attrs)
 
-    main()
+    train()

@@ -28,10 +28,9 @@ def wave_to_logmel(subset, wavelist):
                                                      n_mels=config.n_mels)
 
             logmel = librosa.core.power_to_db(melspec)
-
+            logmel = logmel.astype(np.float32)  # float32 make the feature much small
             delta = librosa.feature.delta(logmel)
             accelerate = librosa.feature.delta(logmel, order=2)
-
             feats = np.stack((logmel, delta, accelerate)) #(3, 64, xx)
             X[item['fname']] = feats
     return X
@@ -59,14 +58,17 @@ def get_feature(subset):
 
 
 if __name__ == '__main__':
-    config = Config(sampling_rate=44100,
+    config = Config(
+                    # csv_train_noisy='./trn_noisy_best50s.csv',
+                    csv_train_noisy='../input/train_noisy.csv',
+                    sampling_rate=44100,
                     audio_duration=1.5,
                     n_mels=128,
                     frame_weigth=100,
-                    frame_shift=15,
+                    frame_shift=10,
                     batch_size=512,
                     n_folds=5,
-                    features_dir="../features/logmel_w100_s15_m128",
+                    features_dir="../features/logmel_w100_s10_m128_full",
                     model_dir='../model/mobileNetv2',
                     prediction_dir='../prediction/mobileNetv2',
                     arch='resnet50_mfcc',
@@ -77,8 +79,11 @@ if __name__ == '__main__':
                     epochs=200,
                     debug=False)
 
-    X_test = get_feature(subset='test')
-    save_data(os.path.join(config.features_dir, 'test.pkl'), X_test)
+    # X_test = get_feature(subset='test')
+    # save_data(os.path.join(config.features_dir, 'test.pkl'), X_test)
+    #
+    # X_train_curated = get_feature(subset='train_curated')
+    # save_data(os.path.join(config.features_dir, 'train_curated.pkl'), X_train_curated)
 
-    X_train = get_feature(subset='train_curated')
-    save_data(os.path.join(config.features_dir, 'train_curated.pkl'), X_train)
+    X_train_noisy = get_feature(subset='train_noisy')
+    save_data(os.path.join(config.features_dir, 'train_noisy.pkl'), X_train_noisy)

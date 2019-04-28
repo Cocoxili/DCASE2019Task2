@@ -9,7 +9,7 @@ class Config(object):
                  csv_train_curated='../input/train_curated.csv',
                  csv_train_noisy='../input/train_noisy.csv',
                  csv_sbm='../input/sample_submission.csv',
-                 sampling_rate=22050, audio_duration=1.5, n_classes=41,
+                 sampling_rate=44100, audio_duration=1.5,
                  train_curated_dir='../input/train_curated',
                  train_noisy_dir='../input/train_noisy',
                  test_dir='../input/test',
@@ -17,11 +17,11 @@ class Config(object):
                  model_dir='../model',
                  prediction_dir='../prediction',
                  arch='resnet101_m', pretrain=False,
-                 cuda=True, print_freq=10, epochs=50,
-                 batch_size=64,
+                 cuda=True, print_freq=100, epochs=80,
+                 batch_size=32,
                  momentum=0.9, weight_decay=0.0005,
                  n_folds=5, lr=0.01,
-                 n_mels=64, frame_weigth=40, frame_shift=10,
+                 n_mels=128, frame_weigth=100, frame_shift=10,
                  mixup=False,
                  debug=False):
 
@@ -47,7 +47,6 @@ class Config(object):
         self.sampling_rate = sampling_rate
         self.audio_duration = audio_duration
         self.audio_length = int(self.sampling_rate * self.audio_duration)
-        self.n_classes = n_classes
         self.train_curated_dir = train_curated_dir
         self.train_noisy_dir = train_noisy_dir
         self.test_dir = test_dir
