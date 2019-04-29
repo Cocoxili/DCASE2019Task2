@@ -4,8 +4,24 @@ from torch.optim import lr_scheduler
 import time
 
 
+def create_plot_window(vis, xlabel, ylabel, title):
+    return vis.line(X=np.array([1]), Y=np.array([np.nan]),
+                    opts=dict(xlabel=xlabel,
+                              ylabel=ylabel,
+                              title=title,
+                              showlegend=True))
+
+
 def train_on_fold(model, train_criterion, val_criterion,
-                  optimizer, train_loader, val_loader, config, fold):
+                  optimizer, train_loader, val_loader, config, fold, vis):
+
+    loss_window = create_plot_window(vis, '#Epochs', 'Loss', 'Train and Val Loss')
+    val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 'Validation lwlrap')
+    learning_rate_window = create_plot_window(vis, '#Epochs', 'learning rate', 'Learning rate')
+
+    win = {'loss': loss_window,
+           'val_lwlrap': val_lwlrap_window,
+           'lr': learning_rate_window}
 
     model.train()
 
@@ -21,10 +37,10 @@ def train_on_fold(model, train_criterion, val_criterion,
         exp_lr_scheduler.step()
 
         # train for one epoch
-        train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch)
+        train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win)
 
         # evaluate on validation set
-        lwlrap = val_on_fold(model, val_criterion, val_loader, config, fold)
+        lwlrap = val_on_fold(model, val_criterion, val_loader, config, epoch, vis, win)
 
         # remember best prec@1 and save checkpoint
         if not config.debug:
@@ -45,12 +61,10 @@ def train_on_fold(model, train_criterion, val_criterion,
     return best_lwlrap
 
 
-def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epoch):
+def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epoch, vis, win):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
-    top1 = AverageMeter()
-    top3 = AverageMeter()
 
     # switch to train mode
     model.train()
@@ -76,10 +90,7 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
         loss = criterion(output, target)
 
         # measure accuracy and record loss
-        # prec1, prec3 = accuracy(output, target, topk=(1, 3))
         losses.update(loss.item(), input.size(0))
-        # top1.update(prec1[0], input.size(0))
-        # top3.update(prec3[0], input.size(0))
 
         # Compute gradient and do SGD step
         optimizer.zero_grad()
@@ -99,8 +110,13 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
                             lr=optimizer.param_groups[0]['lr'], batch_time=batch_time,
                             data_time=data_time, loss=losses))
 
+    vis.line(X=np.array([epoch]), Y=np.array([losses.avg]), name='train_loss',
+             win=win['loss'], update='append')
+    vis.line(X=np.array([epoch]), Y=np.array([optimizer.param_groups[0]['lr']]),
+             win=win['lr'], update='append')
 
-def val_on_fold(model, criterion, val_loader, config, fold):
+
+def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
     batch_time = AverageMeter()
     losses = AverageMeter()
 
@@ -139,6 +155,11 @@ def val_on_fold(model, criterion, val_loader, config, fold):
 
     lwlrap = calculate_lwlrap(target_all.cpu().numpy(), pred_all.cpu().numpy())
     logging.info(' * lwlrap {lwlrap:.3f}'.format(lwlrap=lwlrap))
+
+    vis.line(X=np.array([epoch]), Y=np.array([losses.avg]), name='val_loss',
+             win=win['loss'], update='append')
+    vis.line(X=np.array([epoch]), Y=np.array([lwlrap]),
+             win=win['val_lwlrap'], update='append')
 
     return lwlrap
 

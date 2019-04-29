@@ -5,7 +5,6 @@ from torchvision import models
 import math
 
 
-
 def resnet50_mfcc(pretrained=False, **kwargs):
     model = models.resnet50(pretrained=pretrained)
     # model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,

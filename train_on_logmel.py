@@ -15,10 +15,13 @@ def define_model():
     # model = resnet50_mfcc()
     # model = mobilenet_v2(num_classes=config.num_classes)
     # return model
-    return Classifier(num_classes=config.num_classes)
+    # return Classifier(num_classes=config.num_classes)
+    return resnet50_mfcc()
 
 
 def train():
+    vis = visdom.Visdom()
+
     df_train = pd.read_csv(config.CSV_TRAIN_CURATED)
 
     df_train_noisy = pd.read_csv(config.CSV_TRAIN_NOISY)
@@ -64,7 +67,7 @@ def train():
         cudnn.benchmark = True
 
         lwlrap = train_on_fold(model, criterion, criterion,
-                      optimizer, train_loader, val_loader, config, foldNum)
+                      optimizer, train_loader, val_loader, config, foldNum, vis)
 
         time_on_fold = time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time()-end))
         times.append(time_on_fold)
@@ -79,7 +82,7 @@ def train():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
     config = Config(
                     csv_train_noisy='./trn_noisy_best50s.csv',
@@ -92,7 +95,7 @@ if __name__ == "__main__":
                     batch_size=128,
                     n_folds=5,
                     features_dir="../features/logmel_w100_s10_m128",
-                    model_dir='../model/mobileNetv2_test2',
+                    model_dir='../model/mobileNetv2_test3',
                     # prediction_dir='../prediction/mobileNetv2_test1',
                     arch='resnet50_mfcc',
                     lr=1e-3,

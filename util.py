@@ -18,6 +18,7 @@ import sklearn.metrics
 from tqdm import tqdm
 import time
 import itertools
+import visdom
 
 
 def save_data(filename, data):
