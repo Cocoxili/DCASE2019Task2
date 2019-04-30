@@ -3,43 +3,38 @@ from data_loader import *
 from util import *
 
 
-def seed_everything(seed):
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-
-
 def define_model():
     # model = resnet50_mfcc()
-    # model = mobilenet_v2(num_classes=config.num_classes)
-    # return model
+    model = mobilenet_v2(num_classes=config.num_classes)
+    return model
     # return Classifier(num_classes=config.num_classes)
-    return resnet50_mfcc()
+    # return resnet50_mfcc()
 
 
 def train():
     vis = visdom.Visdom()
 
-    df_train = pd.read_csv(config.CSV_TRAIN_CURATED)
-
+    df_train_curated = pd.read_csv(config.CSV_TRAIN_CURATED)
     df_train_noisy = pd.read_csv(config.CSV_TRAIN_NOISY)
-    df_train = pd.concat([df_train, df_train_noisy], sort=True)
 
     LABELS = config.labels
     label_idx = {label: i for i, label in enumerate(LABELS)}
-    df_train.set_index("fname")
-    df_train["label_idx"] = df_train['labels'].apply(multilabel_to_onehot, args=(label_idx,))
-    df_train.set_index("fname")
+
+    df_train_curated.set_index("fname")
+    df_train_curated["label_idx"] = df_train_curated['labels'].apply(multilabel_to_onehot, args=(label_idx,))
+    df_train_curated.set_index("fname")
+
+    df_train_noisy.set_index("fname")
+    df_train_noisy["label_idx"] = df_train_noisy['labels'].apply(multilabel_to_onehot, args=(label_idx,))
+    df_train_noisy.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
-
     X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy.pkl'))
     X.update(X_nosiy)
 
     if config.debug:
-        df_train = df_train[:500]
+        df_train_curated = df_train_curated[:500]
+        df_train_noisy = df_train_noisy[:200]
 
     skf = KFold(n_splits=config.n_folds, shuffle=True)
 
@@ -49,7 +44,7 @@ def train():
 
         end = time.time()
 
-        train_loader, val_loader = get_data_loader(df_train, X, skf, foldNum, config)
+        train_loader, val_loader = get_data_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config)
 
         model = define_model()
         # criterion = cross_entropy_onehot
@@ -82,20 +77,21 @@ def train():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
     config = Config(
                     csv_train_noisy='./trn_noisy_best50s.csv',
                     # csv_train_noisy='../input/train_noisy.csv',
                     sampling_rate=44100,
                     audio_duration=1.5,
-                    n_mels=128,
+                    n_mels=32,
                     frame_weigth=100,
                     frame_shift=10,
                     batch_size=128,
                     n_folds=5,
                     features_dir="../features/logmel_w100_s10_m128",
-                    model_dir='../model/mobileNetv2_test3',
+                    model_dir='../model/mobileNetv2_test1',
+                    # model_dir='../model/simplecnn',
                     # prediction_dir='../prediction/mobileNetv2_test1',
                     arch='resnet50_mfcc',
                     lr=1e-3,

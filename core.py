@@ -8,8 +8,8 @@ def create_plot_window(vis, xlabel, ylabel, title):
     return vis.line(X=np.array([1]), Y=np.array([np.nan]),
                     opts=dict(xlabel=xlabel,
                               ylabel=ylabel,
-                              title=title,
-                              showlegend=True))
+                              # showlegend=True,
+                              title=title))
 
 
 def train_on_fold(model, train_criterion, val_criterion,

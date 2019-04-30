@@ -194,14 +194,15 @@ class ToTensor(object):
         return data
 
 
-def get_data_loader(df_train, X, skf, foldNum, config):
+def get_data_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
 
     # Get the nth item of a generator
-    train_split, val_split = next(itertools.islice(skf.split(df_train), foldNum, foldNum + 1))
+    train_split, val_split = next(itertools.islice(skf.split(df_train_curated), foldNum, foldNum + 1))
 
-    train_set = df_train.iloc[train_split]
+    train_set = df_train_curated.iloc[train_split]
+    train_set = pd.concat([train_set, df_train_noisy], sort=True)
     train_set = train_set.reset_index(drop=True)
-    val_set = df_train.iloc[val_split]
+    val_set = df_train_curated.iloc[val_split]
     val_set = val_set.reset_index(drop=True)
     logging.info("Fold {0}, Train samples:{1}, val samples:{2}"
                  .format(foldNum, len(train_set), len(val_set)))
@@ -238,20 +239,6 @@ if __name__ == "__main__":
     test = pd.read_csv('../input/sample_submission.csv')
 
     LABELS = config.labels
-    # LABELS = get_classes_name()
-    # ['Accelerating_and_revving_and_vroom', 'Accordion', 'Acoustic_guitar', 'Applause', 'Bark', 'Bass_drum',
-    #  'Bass_guitar', 'Bathtub_(filling_or_washing)', 'Bicycle_bell', 'Burping_and_eructation', 'Bus', 'Buzz',
-    #  'Car_passing_by', 'Cheering', 'Chewing_and_mastication', 'Child_speech_and_kid_speaking', 'Chink_and_clink',
-    #  'Chirp_and_tweet', 'Church_bell', 'Clapping', 'Computer_keyboard', 'Crackle', 'Cricket', 'Crowd',
-    #  'Cupboard_open_or_close', 'Cutlery_and_silverware', 'Dishes_and_pots_and_pans', 'Drawer_open_or_close', 'Drip',
-    #  'Electric_guitar', 'Fart', 'Female_singing', 'Female_speech_and_woman_speaking', 'Fill_(with_liquid)',
-    #  'Finger_snapping', 'Frying_(food)', 'Gasp', 'Glockenspiel', 'Gong', 'Gurgling', 'Harmonica', 'Hi-hat', 'Hiss',
-    #  'Keys_jangling', 'Knock', 'Male_singing', 'Male_speech_and_man_speaking', 'Marimba_and_xylophone',
-    #  'Mechanical_fan', 'Meow', 'Microwave_oven', 'Motorcycle', 'Printer', 'Purr', 'Race_car_and_auto_racing',
-    #  'Raindrop', 'Run', 'Scissors', 'Screaming', 'Shatter', 'Sigh', 'Sink_(filling_or_washing)', 'Skateboard', 'Slam',
-    #  'Sneeze', 'Squeak', 'Stream', 'Strum', 'Tap', 'Tick-tock', 'Toilet_flush', 'Traffic_noise_and_roadway_noise',
-    #  'Trickle_and_dribble', 'Walk_and_footsteps', 'Water_tap_and_faucet', 'Waves_and_surf', 'Whispering', 'Writing',
-    #  'Yell', 'Zipper_(clothing)']
 
 
     label_idx = {label: i for i, label in enumerate(LABELS)}

@@ -21,6 +21,14 @@ import itertools
 import visdom
 
 
+def seed_everything(seed):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
 def save_data(filename, data):
     """Save variable into a pickle file
 
