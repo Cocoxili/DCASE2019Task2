@@ -4,11 +4,13 @@ from util import *
 
 
 def define_model():
-    # model = resnet50_mfcc()
-    model = mobilenet_v2(num_classes=config.num_classes)
-    return model
-    # return Classifier(num_classes=config.num_classes)
+    # model = resnet18()
+    # model = mobilenet_v2(num_classes=config.num_classes)
+    # return model
+    return Classifier(num_classes=config.num_classes)
     # return resnet50_mfcc()
+    # model = run_method_by_string(config.arch)(pretrained=config.pretrain, num_classes=config.num_classes)
+    # return model
 
 
 def train():
@@ -57,7 +59,10 @@ def train():
         # optimizer = optim.SGD(model.parameters(), lr=config.lr,
         #                       momentum=config.momentum,
         #                       weight_decay=config.weight_decay)
-        optimizer = optim.Adam(params=model.parameters(), lr=config.lr, amsgrad=False)
+        optimizer = optim.Adam(params=model.parameters(),
+                               lr=config.lr,
+                               weight_decay=config.weight_decay,
+                               amsgrad=False)
 
         cudnn.benchmark = True
 
@@ -90,12 +95,14 @@ if __name__ == "__main__":
                     batch_size=128,
                     n_folds=5,
                     features_dir="../features/logmel_w100_s10_m128",
-                    model_dir='../model/mobileNetv2_test1',
-                    # model_dir='../model/simplecnn',
+                    # model_dir='../model/resnet',
+                    model_dir='../model/simplecnn_test',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='resnet50_mfcc',
+                    arch='simplecnn',
                     lr=1e-3,
-                    pretrain=True,
+                    eta_min=1e-5,
+                    # weight_decay=5e-5,
+                    pretrain=False,
                     mixup=False,
                     #  epochs=100)
                     epochs=120,

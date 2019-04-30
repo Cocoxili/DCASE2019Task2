@@ -17,11 +17,12 @@ def train_on_fold(model, train_criterion, val_criterion,
 
     loss_window = create_plot_window(vis, '#Epochs', 'Loss', 'Train and Val Loss')
     val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 'Validation lwlrap')
-    learning_rate_window = create_plot_window(vis, '#Epochs', 'learning rate', 'Learning rate')
+    # learning_rate_window = create_plot_window(vis, '#Epochs', 'learning rate', 'Learning rate')
 
     win = {'loss': loss_window,
            'val_lwlrap': val_lwlrap_window,
-           'lr': learning_rate_window}
+           # 'lr': learning_rate_window
+           }
 
     model.train()
 
@@ -30,7 +31,7 @@ def train_on_fold(model, train_criterion, val_criterion,
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 75, 90, 105], gamma=0.7)  # for logmel
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
-    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=1e-5)
+    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
     # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-5)
 
     for epoch in range(config.epochs):
@@ -112,12 +113,11 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
 
     vis.line(X=np.array([epoch]), Y=np.array([losses.avg]), name='train_loss',
              win=win['loss'], update='append')
-    vis.line(X=np.array([epoch]), Y=np.array([optimizer.param_groups[0]['lr']]),
-             win=win['lr'], update='append')
+    # vis.line(X=np.array([epoch]), Y=np.array([optimizer.param_groups[0]['lr']]),
+    #          win=win['lr'], update='append')
 
 
 def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
-    batch_time = AverageMeter()
     losses = AverageMeter()
 
     pred_all = torch.zeros(1, config.num_classes)
@@ -128,8 +128,8 @@ def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
 
     # switch to evaluate mode
     model.eval()
+    end = time.time()
     with torch.no_grad():
-        end = time.time()
         for i, (input, target) in enumerate(val_loader):
             if config.cuda:
                 input, target = input.cuda(), target.cuda(non_blocking=True)
@@ -143,22 +143,19 @@ def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
             # record loss
             losses.update(loss.item(), input.size(0))
 
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
+    # measure elapsed time
+    test_time = time.time() - end
 
-            if i % config.print_freq == 0:
-                logging.info('Test. '
-                             'Time {batch_time.val:.1f} '
-                             'Loss {loss.avg:.3f}'
-                             .format(batch_time=batch_time, loss=losses))
+    logging.info('Test. '
+                 'Time {test_time.val:.1f} '
+                 'Loss {loss.avg:.3f}'.format(test_time=test_time, loss=losses))
 
     lwlrap = calculate_lwlrap(target_all.cpu().numpy(), pred_all.cpu().numpy())
     logging.info(' * lwlrap {lwlrap:.3f}'.format(lwlrap=lwlrap))
 
     vis.line(X=np.array([epoch]), Y=np.array([losses.avg]), name='val_loss',
              win=win['loss'], update='append')
-    vis.line(X=np.array([epoch]), Y=np.array([lwlrap]),
+    vis.line(X=np.array([epoch]), Y=np.array([lwlrap]), name='lwlrap',
              win=win['val_lwlrap'], update='append')
 
     return lwlrap

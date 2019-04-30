@@ -5,7 +5,17 @@ from torchvision import models
 import math
 
 
-def resnet50_mfcc(pretrained=False, **kwargs):
+def resnet18(pretrained=False, **kwargs):
+    model = models.resnet18(pretrained=pretrained)
+    # model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,
+    #                            bias=False)
+    # model.avgpool = nn.AvgPool2d((2, 7), stride=(2, 7))
+    model.avgpool = nn.AdaptiveAvgPool2d(1)
+    model.fc = nn.Linear(512, 80)
+    return model
+
+
+def resnet50(pretrained=False, **kwargs):
     model = models.resnet50(pretrained=pretrained)
     # model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,
     #                            bias=False)
@@ -24,8 +34,8 @@ def resnet101_mfcc(pretrained=False, **kwargs):
     return model
 
 
-def densenet(**kwargs):
-    model = models.densenet121(pretrained=False, **kwargs)
+def densenet121(**kwargs):
+    model = models.densenet121(**kwargs)
     return model
 
 
@@ -76,11 +86,11 @@ class Classifier(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Dropout(0.2),
-            nn.Linear(512, 128),
-            nn.PReLU(),
-            nn.BatchNorm1d(128),
-            nn.Dropout(0.1),
-            nn.Linear(128, num_classes),
+            # nn.Linear(512, 128),
+            # nn.PReLU(),
+            # nn.BatchNorm1d(128),
+            # nn.Dropout(0.1),
+            nn.Linear(512, num_classes),
         )
 
     def forward(self, x):

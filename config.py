@@ -19,8 +19,8 @@ class Config(object):
                  arch='resnet101_m', pretrain=False,
                  cuda=True, print_freq=100, epochs=80,
                  batch_size=32,
-                 momentum=0.9, weight_decay=0.0005,
-                 n_folds=5, lr=0.01,
+                 momentum=0.9, weight_decay=0,
+                 n_folds=5, lr=0.01, eta_min=1e-5,
                  n_mels=128, frame_weigth=100, frame_shift=10,
                  mixup=False,
                  debug=False):
@@ -63,6 +63,7 @@ class Config(object):
         self.weight_decay = weight_decay
         self.n_folds = n_folds
         self.lr = lr
+        self.eta_min = eta_min
 
         self.n_fft = int(frame_weigth / 1000 * sampling_rate)
         self.n_mels = n_mels
