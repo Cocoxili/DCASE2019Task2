@@ -29,10 +29,10 @@ def train_on_fold(model, train_criterion, val_criterion,
     best_lwlrap = 0
 
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 75, 90, 105], gamma=0.7)  # for logmel
+    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80, 100], gamma=0.5)  # for logmel
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
     exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
-    # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-5)
+    # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=config.eta_min)
 
     for epoch in range(config.epochs):
         exp_lr_scheduler.step()
@@ -74,8 +74,8 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
     for i, (input, target) in enumerate(train_loader):
 
         if config.mixup:
-            one_hot_labels = make_one_hot(target)
-            input, target = mixup(input, one_hot_labels, alpha=3)
+            # one_hot_labels = make_one_hot(target)
+            input, target = mixup(input, target, alpha=3)
 
         # measure data loading time
         data_time.update(time.time() - end)
@@ -147,7 +147,7 @@ def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
     test_time = time.time() - end
 
     logging.info('Test. '
-                 'Time {test_time.val:.1f} '
+                 'Time {test_time:.1f} '
                  'Loss {loss.avg:.3f}'.format(test_time=test_time, loss=losses))
 
     lwlrap = calculate_lwlrap(target_all.cpu().numpy(), pred_all.cpu().numpy())

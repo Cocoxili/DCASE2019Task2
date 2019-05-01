@@ -6,11 +6,20 @@ from util import *
 def define_model():
     # model = resnet18()
     # model = mobilenet_v2(num_classes=config.num_classes)
+
+    # checkpoint = '../model/mobileNetv2_test1/model_best.0.pth.tar'
+    # print("=> loading checkpoint '{}'".format(checkpoint))
+    # checkpoint = torch.load(checkpoint)
+    # best_lwlrap = checkpoint['best_lwlrap']
+    # model.load_state_dict(checkpoint['state_dict'])
+    # print("=> loaded checkpoint, best_lwlrap: {:.2f}".format(best_lwlrap))
     # return model
-    return Classifier(num_classes=config.num_classes)
-    # return resnet50_mfcc()
+    # return Classifier(num_classes=config.num_classes)
+    # return resnet50(config.pretrain)
+    # return densenet121(num_classes=config.num_classes)
     # model = run_method_by_string(config.arch)(pretrained=config.pretrain, num_classes=config.num_classes)
     # return model
+    return DilatedCNN()
 
 
 def train():
@@ -51,6 +60,7 @@ def train():
         model = define_model()
         # criterion = cross_entropy_onehot
         criterion = nn.BCEWithLogitsLoss()
+        # criterion = nn.KLDivLoss(reduction='batchmean')
 
         if config.cuda:
             model.cuda()
@@ -82,7 +92,7 @@ def train():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
     config = Config(
                     csv_train_noisy='./trn_noisy_best50s.csv',
@@ -92,15 +102,15 @@ if __name__ == "__main__":
                     n_mels=32,
                     frame_weigth=100,
                     frame_shift=10,
-                    batch_size=128,
+                    batch_size=32,
                     n_folds=5,
                     features_dir="../features/logmel_w100_s10_m128",
                     # model_dir='../model/resnet',
-                    model_dir='../model/simplecnn_test',
+                    model_dir='../model/test2',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='simplecnn',
-                    lr=1e-3,
-                    eta_min=1e-5,
+                    arch='dilatedCNN',
+                    lr=3e-3,
+                    eta_min=5e-5,
                     # weight_decay=5e-5,
                     pretrain=False,
                     mixup=False,
