@@ -5,7 +5,7 @@ from util import *
 
 def define_model():
     # model = resnet18()
-    model = mobilenet_v2(num_classes=config.num_classes)
+    # model = mobilenet_v2(num_classes=config.num_classes)
 
     # checkpoint = '../model/mobileNetv2_test1/model_best.0.pth.tar'
     # print("=> loading checkpoint '{}'".format(checkpoint))
@@ -18,8 +18,9 @@ def define_model():
     # return resnet50(config.pretrain)
     # return densenet121(num_classes=config.num_classes)
     # model = run_method_by_string(config.arch)(pretrained=config.pretrain, num_classes=config.num_classes)
-    return model
-    # return DilatedCNN()
+    # return model
+    # return vgg11(num_classes=config.num_classes)
+    return Baseline()
 
 
 def train():
@@ -99,19 +100,18 @@ if __name__ == "__main__":
                     # csv_train_noisy='../input/train_noisy.csv',
                     sampling_rate=44100,
                     audio_duration=1.5,
-                    n_mels=128,
                     frame_weigth=100,
                     frame_shift=10,
-                    batch_size=32,
                     n_folds=5,
                     features_dir="../features/logmel_w100_s10_m128",
                     # model_dir='../model/resnet',
-                    model_dir='../model/test1',
+                    model_dir='../model/baseline',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='mobileNetV2',
+                    arch='baseline',
                     lr=1e-3,
-                    eta_min=1e-4,
-                    weight_decay=5e-6,
+                    batch_size=128,
+                    eta_min=1e-5,
+                    # weight_decay=5e-6,
                     mixup=False,
                     #  epochs=100)
                     epochs=120,

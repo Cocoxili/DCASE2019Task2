@@ -34,13 +34,13 @@ def train_on_fold(model, train_criterion, val_criterion,
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80, 100], gamma=0.5)  # for logmel
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
-    # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
+    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
     # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=config.eta_min)
-    exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.75, patience=4, verbose=True)
+    # exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.75, patience=4, verbose=True)
 
     for epoch in range(config.epochs):
-        # exp_lr_scheduler.step()
-        exp_lr_scheduler.step(lwlrap)
+        exp_lr_scheduler.step()
+        # exp_lr_scheduler.step(lwlrap)
 
         # train for one epoch
         train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win)
@@ -107,14 +107,23 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % config.print_freq == 0:
-            logging.info('F{fold} E{epoch} lr:{lr:.2e} '
-                         'Time {batch_time.val:.1f}({batch_time.avg:.1f}) '
-                         'Data {data_time.val:.1f}({data_time.avg:.1f}) '
-                         'Loss {loss.avg:.3f}'.format(
-                            i, len(train_loader), fold=fold, epoch=epoch,
-                            lr=optimizer.param_groups[0]['lr'], batch_time=batch_time,
-                            data_time=data_time, loss=losses))
+        # if i % config.print_freq == 0:
+        #     logging.info('F{fold} E{epoch} lr:{lr:.2e} '
+        #                  'Time {batch_time.val:.1f}({batch_time.avg:.1f}) '
+        #                  'Data {data_time.val:.1f}({data_time.avg:.1f}) '
+        #                  'Loss {loss.avg:.3f}'.format(
+        #                     i, len(train_loader), fold=fold, epoch=epoch,
+        #                     lr=optimizer.param_groups[0]['lr'], batch_time=batch_time,
+        #                     data_time=data_time, loss=losses))
+
+    logging.info('F{fold} E{epoch} lr:{lr:.2e} '
+                 'Time {batch_time.sum:.1f} '
+                 'Data {data_time.sum:.1f} '
+                 'Loss {loss.avg:.3f}'
+                 .format(fold=fold, epoch=epoch,
+                         lr=optimizer.param_groups[0]['lr'],
+                         batch_time=batch_time,
+                         data_time=data_time, loss=losses))
 
     vis.line(X=np.array([epoch]), Y=np.array([losses.avg]), name='train_loss',
              win=win['loss'], update='append')
@@ -148,20 +157,27 @@ def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
             # record loss
             losses.update(loss.item(), input.size(0))
 
+    per_class_lwlrap, weight_per_class = calculate_per_class_lwlrap(target_all.cpu().numpy(), pred_all.cpu().numpy())
+    lwlrap = np.sum(per_class_lwlrap * weight_per_class)
+
     # measure elapsed time
-    test_time = time.time() - end
+    elapse = time.time() - end
 
-    logging.info('Test. '
-                 'Time {test_time:.1f} '
-                 'Loss {loss.avg:.3f}'.format(test_time=test_time, loss=losses))
-
-    lwlrap = calculate_lwlrap(target_all.cpu().numpy(), pred_all.cpu().numpy())
-    logging.info(' * lwlrap {lwlrap:.3f}'.format(lwlrap=lwlrap))
+    logging.info('Test. Time {test_time:.1f} Loss {loss.avg:.3f} *lwlrap {lwlrap:.3f}*'
+                 .format(test_time=elapse, loss=losses, lwlrap=lwlrap))
 
     vis.line(X=np.array([epoch]), Y=np.array([losses.avg]), name='val_loss',
              win=win['loss'], update='append')
     vis.line(X=np.array([epoch]), Y=np.array([lwlrap]), name='lwlrap',
              win=win['val_lwlrap'], update='append')
+
+    # calculate lwlrap on each class at last epoch
+    if epoch == (config.epochs-1):
+        lwlrap_of_class = pd.DataFrame(columns=['fname', 'lwlrap'])
+        lwlrap_of_class['fname'] = config.labels
+        lwlrap_of_class['lwlrap'] = per_class_lwlrap
+        lwlrap_of_class = lwlrap_of_class.sort_values(by='lwlrap')
+        logging.info('{}'.format(lwlrap_of_class))
 
     return lwlrap
 

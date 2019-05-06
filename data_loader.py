@@ -200,7 +200,7 @@ def get_data_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
     train_split, val_split = next(itertools.islice(skf.split(df_train_curated), foldNum, foldNum + 1))
 
     train_set = df_train_curated.iloc[train_split]
-    # train_set = pd.concat([train_set, df_train_noisy], sort=True)
+    train_set = pd.concat([train_set, df_train_noisy], sort=True)
     train_set = train_set.reset_index(drop=True)
     val_set = df_train_curated.iloc[val_split]
     val_set = val_set.reset_index(drop=True)

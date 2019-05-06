@@ -39,6 +39,11 @@ def densenet121(**kwargs):
     return model
 
 
+def vgg11(**kwargs):
+    model = models.vgg11_bn(**kwargs)
+    return model
+
+
 class ConvBNReLU(nn.Sequential):
     def __init__(self, in_planes, out_planes, kernel_size=3, stride=1, groups=1):
         padding = (kernel_size - 1) // 2

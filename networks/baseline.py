@@ -63,3 +63,4 @@ class Baseline(nn.Module):
         x = x.mean([2, 3])
         x = self.fc(x)
         return x
+
