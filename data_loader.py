@@ -76,10 +76,11 @@ class FreesoundLogmel(Dataset):
         # data = data[np.newaxis, :]
 
         if self.mode is "train":
-            # label_name = self.frame["label"][idx]
             label_idx = self.frame["label_idx"][idx]
-            return data, label_idx
-        if self.mode is "test":
+            weight = self.frame['weight'][idx]
+            return data, label_idx, np.float32(weight)
+
+        elif self.mode is "test":
             return data
 
     def _random_selection(self, fname):

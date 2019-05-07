@@ -46,7 +46,7 @@ def train_on_fold(model, train_criterion, val_criterion,
         train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win)
 
         # evaluate on validation set
-        lwlrap = val_on_fold(model, val_criterion, val_loader, config, epoch, vis, win)
+        lwlrap = val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win)
 
         # remember best prec@1 and save checkpoint
         if not config.debug:
@@ -67,7 +67,7 @@ def train_on_fold(model, train_criterion, val_criterion,
     return best_lwlrap
 
 
-def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epoch, vis, win):
+def train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -76,7 +76,7 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
     model.train()
 
     end = time.time()
-    for i, (input, target) in enumerate(train_loader):
+    for i, (input, target, weights) in enumerate(train_loader):
 
         if config.mixup:
             # one_hot_labels = make_one_hot(target)
@@ -87,13 +87,16 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
 
         if config.cuda:
             input, target = input.cuda(), target.cuda(non_blocking=True)
+            weights = weights.cuda(non_blocking=True)
 
         # Compute output
         # print("input:", input.size(), input.type())  # ([batch_size, 1, 64, 150])
         output = model(input)
         # print("output:", output.size(), output.type())  # ([bs, 41])
         # print("target:", target.size(), target.type())  # ([bs, 41])
-        loss = criterion(output, target)
+        loss = train_criterion(output, target)
+        # print(loss.size())
+        loss = torch.mean(torch.mean(loss, dim=1)*weights)
 
         # measure accuracy and record loss
         losses.update(loss.item(), input.size(0))
@@ -131,7 +134,7 @@ def train_one_epoch(train_loader, model, criterion, optimizer, config, fold, epo
     #          win=win['lr'], update='append')
 
 
-def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
+def val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win):
     losses = AverageMeter()
 
     pred_all = torch.zeros(1, config.num_classes)
@@ -144,7 +147,7 @@ def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
     model.eval()
     end = time.time()
     with torch.no_grad():
-        for i, (input, target) in enumerate(val_loader):
+        for i, (input, target, _) in enumerate(val_loader):
             if config.cuda:
                 input, target = input.cuda(), target.cuda(non_blocking=True)
 
@@ -153,7 +156,8 @@ def val_on_fold(model, criterion, val_loader, config, epoch, vis, win):
             # compute output
             output = model(input)
             pred_all = torch.cat((pred_all, output))
-            loss = criterion(output, target)
+
+            loss = val_criterion(output, target)
             # record loss
             losses.update(loss.item(), input.size(0))
 

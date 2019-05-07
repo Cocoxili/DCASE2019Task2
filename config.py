@@ -22,6 +22,7 @@ class Config(object):
                  momentum=0.9, weight_decay=0,
                  n_folds=5, lr=0.01, eta_min=1e-5,
                  n_mels=128, frame_weigth=100, frame_shift=10,
+                 noisy_weight=0.5,
                  mixup=False,
                  debug=False):
 
@@ -71,6 +72,7 @@ class Config(object):
         self.frame_shift = frame_shift
         self.hop_length = int(frame_shift / 1000 * sampling_rate)
 
+        self.noisy_weight = noisy_weight
         self.mixup = mixup
         self.debug = debug
 

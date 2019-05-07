@@ -34,10 +34,12 @@ def train():
 
     df_train_curated.set_index("fname")
     df_train_curated["label_idx"] = df_train_curated['labels'].apply(multilabel_to_onehot, args=(label_idx,))
+    df_train_curated["weight"] = [1 for i in range(len(df_train_curated))]
     df_train_curated.set_index("fname")
 
     df_train_noisy.set_index("fname")
     df_train_noisy["label_idx"] = df_train_noisy['labels'].apply(multilabel_to_onehot, args=(label_idx,))
+    df_train_noisy["weight"] = [config.noisy_weight for i in range(len(df_train_noisy))]
     df_train_noisy.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
@@ -60,12 +62,13 @@ def train():
 
         model = define_model()
         # criterion = cross_entropy_onehot
-        criterion = nn.BCEWithLogitsLoss()
+        train_criterion = nn.BCEWithLogitsLoss(reduction='none')
+        val_criterion = nn.BCEWithLogitsLoss()
         # criterion = nn.KLDivLoss(reduction='batchmean')
 
         if config.cuda:
             model.cuda()
-            criterion = criterion.cuda()
+            # criterion = criterion.cuda()
 
         # optimizer = optim.SGD(model.parameters(), lr=config.lr,
         #                       momentum=config.momentum,
@@ -77,7 +80,7 @@ def train():
 
         cudnn.benchmark = True
 
-        lwlrap = train_on_fold(model, criterion, criterion,
+        lwlrap = train_on_fold(model, train_criterion, val_criterion,
                       optimizer, train_loader, val_loader, config, foldNum, vis)
 
         time_on_fold = time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time()-end))
@@ -93,7 +96,7 @@ def train():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
     config = Config(
                     csv_train_noisy='./trn_noisy_best50s.csv',
@@ -104,8 +107,9 @@ if __name__ == "__main__":
                     frame_shift=10,
                     n_folds=5,
                     features_dir="../features/logmel_w100_s10_m128",
+                    # features_dir="../features/logmel_w100_s10_m128",
                     # model_dir='../model/resnet',
-                    model_dir='../model/baseline',
+                    model_dir='../model/test2',
                     # prediction_dir='../prediction/mobileNetv2_test1',
                     arch='baseline',
                     lr=1e-3,
@@ -113,7 +117,7 @@ if __name__ == "__main__":
                     eta_min=1e-5,
                     # weight_decay=5e-6,
                     mixup=False,
-                    #  epochs=100)
+                    noisy_weight=0.5,
                     epochs=120,
                     debug=False)
 
