@@ -4,26 +4,8 @@ from util import *
 
 
 def define_model():
-    # model = resnet18()
-    model = models.mobilenet_v2(num_classes=config.num_classes)
-    # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
-    # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
-    # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
-    # model = models.shufflenetv2_x2_0(num_classes=config.num_classes)
-    # checkpoint = '../model/mobileNetv2_test1/model_best.0.pth.tar'
-    # print("=> loading checkpoint '{}'".format(checkpoint))
-    # checkpoint = torch.load(checkpoint)
-    # best_lwlrap = checkpoint['best_lwlrap']
-    # model.load_state_dict(checkpoint['state_dict'])
-    # print("=> loaded checkpoint, best_lwlrap: {:.2f}".format(best_lwlrap))
-    # return model
-    # return Classifier(num_classes=config.num_classes)
-    # return resnet50(config.pretrain)
-    # return densenet121(num_classes=config.num_classes)
-    # model = run_method_by_string(config.arch)(pretrained=config.pretrain, num_classes=config.num_classes)
+    model = waveMobileNet()
     return model
-    # return vgg11(num_classes=config.num_classes)
-    # return Baseline()
 
 
 def train():
@@ -61,7 +43,7 @@ def train():
 
         end = time.time()
 
-        train_loader, val_loader = get_logmel_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config)
+        train_loader, val_loader = get_wave_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config)
 
         model = define_model()
         # criterion = cross_entropy_onehot
@@ -99,29 +81,24 @@ def train():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
     config = Config(
                     csv_train_noisy='./trn_noisy_best50s.csv',
                     # csv_train_noisy='../input/train_noisy.csv',
                     sampling_rate=44100,
                     audio_duration=1.5,
-                    frame_weigth=100,
-                    frame_shift=10,
                     n_folds=5,
-                    features_dir="../../../features/logmel_w100_s10_m128",
-                    # model_dir='../model/resnet',
+                    features_dir="../../../features/wave_sr44100",
                     model_dir='../model/test1',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='MobileNetV2',
-                    batch_size=32,
+                    arch='WaveCNN',
                     lr=1e-3,
+                    batch_size=64,
                     eta_min=1e-5,
                     # weight_decay=5e-6,
                     mixup=False,
-                    noisy_weight=1,
-                    early_stopping=True,
-                    label_smoothing=False,
+                    noisy_weight=0.5,
                     epochs=120,
                     debug=False)
 

@@ -15,4 +15,5 @@ __pycache__/
 
 *.pdf
 
+torchvision/
 test*.py

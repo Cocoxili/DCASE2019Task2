@@ -9,15 +9,15 @@ def create_plot_window(vis, xlabel, ylabel, ytickmin, ytickmax, title):
                     opts=dict(xlabel=xlabel,
                               ylabel=ylabel,
                               # showlegend=True,
-                              ytickmin=ytickmin,
-                              ytickmax=ytickmax,
+                              # ytickmin=ytickmin,
+                              # ytickmax=ytickmax,
                               title=title))
 
 
 def train_on_fold(model, train_criterion, val_criterion,
                   optimizer, train_loader, val_loader, config, fold, vis):
 
-    loss_window = create_plot_window(vis, '#Epochs', 'Loss', 0, 0.1, 'Train and Val Loss')
+    loss_window = create_plot_window(vis, '#Epochs', 'Loss', 0, 0, 'Train and Val Loss')
     val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 0, 0.8, 'Validation lwlrap')
     # learning_rate_window = create_plot_window(vis, '#Epochs', 'learning rate', 'Learning rate')
 
@@ -28,8 +28,8 @@ def train_on_fold(model, train_criterion, val_criterion,
 
     model.train()
 
-    lwlrap = 0
     best_lwlrap = 0
+    lowest_val_loss = 666.0
 
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80, 100], gamma=0.5)  # for logmel
@@ -46,24 +46,41 @@ def train_on_fold(model, train_criterion, val_criterion,
         train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win)
 
         # evaluate on validation set
-        lwlrap = val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win)
+        lwlrap, val_loss = val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win)
 
         # remember best prec@1 and save checkpoint
         if not config.debug:
             is_best = lwlrap > best_lwlrap
             best_lwlrap = max(lwlrap, best_lwlrap)
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': config.arch,
-                # 'model': model,
-                'state_dict': model.state_dict(),
-                'best_lwlrap': best_lwlrap,
-                # 'optimizer': optimizer.state_dict(),
-            }, is_best, fold, config,
-            filename=config.model_dir + '/checkpoint.pth.tar')
+            if is_best:
+                best_epoch = epoch
+                best_name = config.model_dir + '/model_best.' + str(fold) + '.pth.tar'
+                save_checkpoint({
+                    'epoch': epoch,
+                    'arch': config.arch,
+                    # 'model': model,
+                    'state_dict': model.state_dict(),
+                    'best_lwlrap': best_lwlrap,
+                    # 'optimizer': optimizer.state_dict(),
+                }, best_name)
 
-    logging.info(' *** Best lwlrap {lwlrap:.3f}'
-                 .format(lwlrap=best_lwlrap))
+        if config.early_stopping:
+            is_early = val_loss < lowest_val_loss
+            lowest_val_loss = min(val_loss, lowest_val_loss)
+            if is_early:
+                early_epoch = epoch
+                early_name = config.model_dir + '/early.' + str(fold) + '.pth.tar'
+                save_checkpoint({
+                    'epoch': epoch,
+                    # 'model': model,
+                    'state_dict': model.state_dict(),
+                    'best_lwlrap': lwlrap,
+                    'lowest_val_loss': lowest_val_loss
+                    }, early_name)
+
+    logging.info('*** Best lwlrap {lwlrap:.3f} @ E{best_epoch}, early stopping @ E{early_epoch}.'
+                 .format(lwlrap=best_lwlrap, best_epoch=best_epoch, early_epoch=early_epoch))
+
     return best_lwlrap
 
 
@@ -88,6 +105,9 @@ def train_one_epoch(train_loader, model, train_criterion, optimizer, config, fol
         if config.cuda:
             input, target = input.cuda(), target.cuda(non_blocking=True)
             weights = weights.cuda(non_blocking=True)
+
+        if config.label_smoothing:
+            target = label_smooth(target, 0.99, 0.01)
 
         # Compute output
         # print("input:", input.size(), input.type())  # ([batch_size, 1, 64, 150])
@@ -183,7 +203,7 @@ def val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win):
         lwlrap_of_class = lwlrap_of_class.sort_values(by='lwlrap')
         logging.info('{}'.format(lwlrap_of_class))
 
-    return lwlrap
+    return lwlrap, losses.avg
 
 
 def mixup(data, one_hot_labels, alpha=1):
@@ -211,3 +231,5 @@ def mixup(data, one_hot_labels, alpha=1):
         y[i] = y1[i] * weights[i] + y2[i] * (1 - weights[i])
 
     return x, y
+
+

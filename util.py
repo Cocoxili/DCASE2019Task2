@@ -20,6 +20,7 @@ from tqdm import tqdm
 import time
 import itertools
 import visdom
+import random
 
 
 def seed_everything(seed):
@@ -130,11 +131,8 @@ def accuracy(output, target, topk=(1,)):
         return res
 
 
-def save_checkpoint(state, is_best, fold, config, filename='../model/checkpoint.pth.tar'):
+def save_checkpoint(state, filename):
     torch.save(state, filename)
-    if is_best:
-        best_name = config.model_dir + '/model_best.' + str(fold) + '.pth.tar'
-        shutil.copyfile(filename, best_name)
 
 
 def run_method_by_string(name):
@@ -193,6 +191,43 @@ def cross_entropy_onehot(input, target, size_average=True):
 def get_classes_name():
     file = pd.read_csv('../input/sample_submission.csv')
     return(list(file.columns)[1:])
+
+
+def label_smooth(one_hot_labels, upper, lower):
+    """
+    Smoothing a batch of label. For example, [1, 1, 0, 0] -> [0.9, 0.9, 0.1, 0.1].
+    Input labels are tensor, and output tensor.
+    """
+    u = torch.full_like(one_hot_labels, upper)
+    l = torch.full_like(one_hot_labels, lower)
+    return torch.where(one_hot_labels == 1, u, l)
+
+
+def mixup(data, one_hot_labels, alpha=1):
+    batch_size = data.size()[0]
+
+    weights = np.random.beta(alpha, alpha, batch_size)
+
+    weights = torch.from_numpy(weights).type(torch.FloatTensor)
+
+    #  print('Mixup weights', weights)
+    index = np.random.permutation(batch_size)
+    x1, x2 = data, data[index]
+
+    x = torch.zeros_like(x1)
+    for i in range(batch_size):
+        for c in range(x.size()[1]):
+            x[i][c] = x1[i][c] * weights[i] + x2[i][c] * (1 - weights[i])
+
+    y1 = one_hot_labels
+    y2 = one_hot_labels[index]
+
+    y = torch.zeros_like(y1)
+
+    for i in range(batch_size):
+        y[i] = y1[i] * weights[i] + y2[i] * (1 - weights[i])
+
+    return x, y
 
 
 # FROM: https://colab.research.google.com/drive/1AgPdhSp7ttY18O3fEoHOQKlt_3HJDLi8#scrollTo=FJv0Rtqfsu3X

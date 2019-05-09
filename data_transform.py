@@ -36,6 +36,28 @@ def wave_to_logmel(subset, wavelist):
     return X
 
 
+def wave_to_pkl(subset, wavelist):
+    X = {}
+    if subset == 'test':
+        sub_dir = config.test_dir
+    elif subset == 'train_curated':
+        sub_dir = config.train_curated_dir
+    elif subset == 'train_noisy':
+        sub_dir = config.train_noisy_dir
+
+    for i, item in tqdm(wavelist.iterrows()):
+        file_path = os.path.join(sub_dir, item['fname'])
+
+        data, _ = librosa.load(file_path, config.sampling_rate, res_type='kaiser_best')
+
+        # some audio file is empty, fill logmel with 0.
+        if len(data) == 0:
+            print("empty file:", file_path)
+        else:
+            X[item['fname']] = data
+    return X
+
+
 def get_wavelist(subset='test'):
     if subset == 'train_curated':
         wavelist = pd.read_csv(config.CSV_TRAIN_CURATED)
@@ -48,11 +70,20 @@ def get_wavelist(subset='test'):
     return wavelist
 
 
-def get_feature(subset):
+def get_logmel_feature(subset):
     end = time.time()
     wavelist = get_wavelist(subset)
     print(len(wavelist))
     X = wave_to_logmel(subset, wavelist)
+    print('Time of data transformation: ', time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time() - end)))
+    return X
+
+
+def get_wave_feature(subset):
+    end = time.time()
+    wavelist = get_wavelist(subset)
+    print(len(wavelist))
+    X = wave_to_pkl(subset, wavelist)
     print('Time of data transformation: ', time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time() - end)))
     return X
 
@@ -79,11 +110,26 @@ if __name__ == '__main__':
                     epochs=200,
                     debug=False)
 
-    # X_test = get_feature(subset='test')
+    # X_test = get_logmel_feature(subset='test')
     # save_data(os.path.join(config.features_dir, 'test.pkl'), X_test)
     #
-    # X_train_curated = get_feature(subset='train_curated')
+    # X_train_curated = get_logmel_feature(subset='train_curated')
     # save_data(os.path.join(config.features_dir, 'train_curated.pkl'), X_train_curated)
+    #
+    # X_train_noisy = get_logmel_feature(subset='train_noisy')
+    # save_data(os.path.join(config.features_dir, 'train_noisy.pkl'), X_train_noisy)
 
-    X_train_noisy = get_feature(subset='train_noisy')
+    config = Config(
+                    csv_train_noisy='./trn_noisy_best50s.csv',
+                    # csv_train_noisy='../input/train_noisy.csv',
+                    sampling_rate=44100,
+                    features_dir="../../../features/wave_sr44100")
+
+    X_test = get_wave_feature(subset='test')
+    save_data(os.path.join(config.features_dir, 'test.pkl'), X_test)
+
+    X_train_curated = get_wave_feature(subset='train_curated')
+    save_data(os.path.join(config.features_dir, 'train_curated.pkl'), X_train_curated)
+
+    X_train_noisy = get_wave_feature(subset='train_noisy')
     save_data(os.path.join(config.features_dir, 'train_noisy.pkl'), X_train_noisy)

@@ -23,6 +23,8 @@ class Config(object):
                  n_folds=5, lr=0.01, eta_min=1e-5,
                  n_mels=128, frame_weigth=100, frame_shift=10,
                  noisy_weight=0.5,
+                 early_stopping=False,
+                 label_smoothing=False,
                  mixup=False,
                  debug=False):
 
@@ -73,6 +75,8 @@ class Config(object):
         self.hop_length = int(frame_shift / 1000 * sampling_rate)
 
         self.noisy_weight = noisy_weight
+        self.early_stopping = early_stopping
+        self.label_smoothing = label_smoothing
         self.mixup = mixup
         self.debug = debug
 
