@@ -21,6 +21,8 @@ import time
 import itertools
 import visdom
 import random
+from PIL import Image
+from loss import *
 
 
 def seed_everything(seed):

@@ -28,6 +28,7 @@ def train_on_fold(model, train_criterion, val_criterion,
 
     model.train()
 
+    lwlrap = 0
     best_lwlrap = 0
     lowest_val_loss = 666.0
 
@@ -36,7 +37,7 @@ def train_on_fold(model, train_criterion, val_criterion,
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
     exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
     # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=config.eta_min)
-    # exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.75, patience=4, verbose=True)
+    # exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.75, patience=3, verbose=True)
 
     for epoch in range(config.epochs):
         exp_lr_scheduler.step()
@@ -112,8 +113,8 @@ def train_one_epoch(train_loader, model, train_criterion, optimizer, config, fol
         # Compute output
         # print("input:", input.size(), input.type())  # ([batch_size, 1, 64, 150])
         output = model(input)
-        # print("output:", output.size(), output.type())  # ([bs, 41])
-        # print("target:", target.size(), target.type())  # ([bs, 41])
+        # print("output:", output.size(), output.type())  # ([bs, num_class])
+        # print("target:", target.size(), target.type())  # ([bs, num_class])
         loss = train_criterion(output, target)
         # print(loss.size())
         loss = torch.mean(torch.mean(loss, dim=1)*weights)

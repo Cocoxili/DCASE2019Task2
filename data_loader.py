@@ -317,7 +317,7 @@ def get_logmel_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config)
     train_split, val_split = next(itertools.islice(skf.split(df_train_curated), foldNum, foldNum + 1))
 
     train_set = df_train_curated.iloc[train_split]
-    train_set = pd.concat([train_set, df_train_noisy], sort=True)
+    # train_set = pd.concat([train_set, df_train_noisy], sort=True)
     train_set = train_set.reset_index(drop=True)
     val_set = df_train_curated.iloc[val_split]
     val_set = val_set.reset_index(drop=True)
@@ -390,9 +390,82 @@ def get_wave_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
     return train_loader, val_loader
 
 
+class FATTrainDataset(Dataset):
+    def __init__(self, mels, labels, transforms):
+        super().__init__()
+        self.mels = mels
+        self.labels = labels
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.mels)
+
+    def __getitem__(self, idx):
+        # crop 1sec
+        image = Image.fromarray(self.mels[idx], mode='RGB')
+        time_dim, base_dim = image.size
+        crop = random.randint(0, time_dim - base_dim)
+        image = image.crop([crop, 0, crop + base_dim, base_dim])
+        image = self.transforms(image).div_(255)
+
+        label = self.labels[idx]
+        label = torch.from_numpy(label).float()
+
+        return image, label
+
+
+class FATTestDataset(Dataset):
+    def __init__(self, fnames, mels, transforms, tta=5):
+        super().__init__()
+        self.fnames = fnames
+        self.mels = mels
+        self.transforms = transforms
+        self.tta = tta
+
+    def __len__(self):
+        return len(self.fnames) * self.tta
+
+    def __getitem__(self, idx):
+        new_idx = idx % len(self.fnames)
+
+        image = Image.fromarray(self.mels[new_idx], mode='RGB')
+        time_dim, base_dim = image.size
+        crop = random.randint(0, time_dim - base_dim)
+        image = image.crop([crop, 0, crop + base_dim, base_dim])
+        image = self.transforms(image).div_(255)
+
+        fname = self.fnames[new_idx]
+
+        return image, fname
+
+
 if __name__ == "__main__":
+    mels = {
+        'train_curated': '../../../features/fat2019_prep_mels1/mels_train_curated.pkl',
+        'train_noisy': '../../../features/fat2019_prep_mels1/mels_trn_noisy_best50s.pkl',
+        'test': '../../../features/fat2019_prep_mels1/mels_test.pkl'
+    }
+
+    with open(mels['train_curated'], 'rb') as curated:
+        x_train = pickle.load(curated)
+
+    # with open(mels['train_noisy'], 'rb') as noisy:
+    #     x_train.extend(pickle.load(noisy))
+
+    # with open(mels['test'], 'rb') as test:
+    #     x_test = pickle.load(test)
+
+    y_train = np.zeros((len(train_df), num_classes)).astype(int)
+    for i, row in enumerate(train_df['labels'].str.split(',')):
+        for label in row:
+            idx = labels.index(label)
+            y_train[i, idx] = 1
+
+    y_train.shape
+
+    """
     # config = Config(sampling_rate=44100, audio_duration=1.5, features_dir="../data-22050")
-    config = Config(sampling_rate=22050,
+    config = Config(sampling_rate=44100,
                     audio_duration=1.5,
                     features_dir='../input/features/logmel+delta_w80_s10_m64',)
     DEBUG = True
@@ -446,17 +519,5 @@ if __name__ == "__main__":
             print(target.size())
             break
 
-    # ---------test logmel loader------------
-    # test_set = pd.read_csv('../sample_submission.csv')
-    # testSet = Freesound_logmel(config=config, frame=test_set,
-    #                            # transform=transforms.Compose([ToTensor()]),
-    #                            mode="test")
-    # # test_loader = DataLoader(testSet, batch_size=config.batch_size, shuffle=False, num_workers=1)
-    # test_loader = DataLoader(testSet, batch_size=1, shuffle=False, num_workers=1)
-    # print(len(test_loader))
-    # print(type(test_loader))
-    # for i, input in enumerate(test_loader):
-    #
-    #     print(input.type())
-    #     break
+    """
 

@@ -5,7 +5,7 @@ from util import *
 
 def define_model():
     # model = resnet18()
-    model = models.mobilenet_v2(num_classes=config.num_classes)
+    # model = models.mobilenet_v2(num_classes=config.num_classes)
     # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
@@ -21,9 +21,10 @@ def define_model():
     # return resnet50(config.pretrain)
     # return densenet121(num_classes=config.num_classes)
     # model = run_method_by_string(config.arch)(pretrained=config.pretrain, num_classes=config.num_classes)
-    return model
+    # return model
     # return vgg11(num_classes=config.num_classes)
     # return Baseline()
+    return TestCNN()
 
 
 def train():
@@ -66,6 +67,9 @@ def train():
         model = define_model()
         # criterion = cross_entropy_onehot
         train_criterion = nn.BCEWithLogitsLoss(reduction='none')
+        # train_criterion = SoftBCE
+        # train_criterion = Q_BCE
+
         val_criterion = nn.BCEWithLogitsLoss()
         # criterion = nn.KLDivLoss(reduction='batchmean')
 
@@ -113,7 +117,7 @@ if __name__ == "__main__":
                     # model_dir='../model/resnet',
                     model_dir='../model/test1',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='MobileNetV2',
+                    arch='TestCNN',
                     batch_size=32,
                     lr=1e-3,
                     eta_min=1e-5,
