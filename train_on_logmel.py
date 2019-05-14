@@ -5,7 +5,7 @@ from util import *
 
 def define_model():
     # model = resnet18()
-    # model = models.mobilenet_v2(num_classes=config.num_classes)
+    model = models.mobilenet_v2(num_classes=config.num_classes)
     # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
@@ -21,10 +21,10 @@ def define_model():
     # return resnet50(config.pretrain)
     # return densenet121(num_classes=config.num_classes)
     # model = run_method_by_string(config.arch)(pretrained=config.pretrain, num_classes=config.num_classes)
-    # return model
+    return model
     # return vgg11(num_classes=config.num_classes)
     # return Baseline()
-    return TestCNN()
+    # return TestCNN3()
 
 
 def train():
@@ -47,8 +47,8 @@ def train():
     df_train_noisy.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
-    X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy.pkl'))
-    X.update(X_nosiy)
+    # X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy.pkl'))
+    # X.update(X_nosiy)
 
     if config.debug:
         df_train_curated = df_train_curated[:500]
@@ -88,7 +88,7 @@ def train():
         cudnn.benchmark = True
 
         lwlrap = train_on_fold(model, train_criterion, val_criterion,
-                      optimizer, train_loader, val_loader, config, foldNum, vis)
+                               optimizer, train_loader, val_loader, config, foldNum, vis)
 
         time_on_fold = time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time()-end))
         times.append(time_on_fold)
@@ -113,15 +113,15 @@ if __name__ == "__main__":
                     frame_weigth=100,
                     frame_shift=10,
                     n_folds=5,
-                    features_dir="../../../features/logmel_w100_s10_m128",
+                    features_dir="../../../features/logmel_w100_s10_m128_trim_norm",
                     # model_dir='../model/resnet',
                     model_dir='../model/test1',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='TestCNN',
+                    arch='MobileNetV2',
                     batch_size=32,
                     lr=1e-3,
                     eta_min=1e-5,
-                    # weight_decay=5e-6,
+                    weight_decay=5e-6,
                     mixup=False,
                     noisy_weight=1,
                     early_stopping=True,

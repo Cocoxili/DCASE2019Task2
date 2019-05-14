@@ -9,16 +9,16 @@ def create_plot_window(vis, xlabel, ylabel, ytickmin, ytickmax, title):
                     opts=dict(xlabel=xlabel,
                               ylabel=ylabel,
                               # showlegend=True,
-                              # ytickmin=ytickmin,
-                              # ytickmax=ytickmax,
+                              ytickmin=ytickmin,
+                              ytickmax=ytickmax,
                               title=title))
 
 
 def train_on_fold(model, train_criterion, val_criterion,
                   optimizer, train_loader, val_loader, config, fold, vis):
 
-    loss_window = create_plot_window(vis, '#Epochs', 'Loss', 0, 0, 'Train and Val Loss')
-    val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 0, 0.8, 'Validation lwlrap')
+    loss_window = create_plot_window(vis, '#Epochs', 'Loss', 0, 0.08, 'Train and Val Loss')
+    val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 0, 0.9, 'Validation lwlrap')
     # learning_rate_window = create_plot_window(vis, '#Epochs', 'learning rate', 'Learning rate')
 
     win = {'loss': loss_window,
@@ -37,7 +37,7 @@ def train_on_fold(model, train_criterion, val_criterion,
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
     exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
     # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=config.eta_min)
-    # exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.75, patience=3, verbose=True)
+    # exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.50, patience=5, verbose=True)
 
     for epoch in range(config.epochs):
         exp_lr_scheduler.step()

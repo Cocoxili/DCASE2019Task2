@@ -6,58 +6,6 @@ def worker_init_fn():
     np.random.seed(seed)
 
 
-# class Freesound(Dataset):
-#     def __init__(self, config, frame, mode, transform=None):
-#         self.config = config
-#         self.frame = frame
-#         self.transform = transform
-#         self.mode = mode
-#
-#     def __len__(self):
-#         return self.frame.shape[0]
-#
-#     def __getitem__(self, idx):
-#
-#         filename = os.path.splitext(self.frame["fname"][idx])[0] + '.pkl'
-#
-#         file_path = os.path.join(self.config.features_dir, filename)
-#
-#         # Read and Resample the audio
-#         data = self._random_selection(file_path)
-#
-#         if self.transform is not None:
-#             data = self.transform(data)
-#
-#         data = data[np.newaxis, :]
-#
-#         if self.mode is "train":
-#             # label_name = self.frame["label"][idx]
-#             label_idx = self.frame["label_idx"][idx]
-#             return data, label_idx
-#         if self.mode is "test":
-#             return data
-#
-#     def _random_selection(self, file_path):
-#
-#         input_length = self.config.audio_length
-#         # Read and Resample the audio
-#         data = load_data(file_path)
-#
-#         # Random offset / Padding
-#         if len(data) > input_length:
-#             max_offset = len(data) - input_length
-#             offset = np.random.randint(max_offset)
-#             data = data[offset:(input_length + offset)]
-#         else:
-#             if input_length > len(data):
-#                 max_offset = input_length - len(data)
-#                 offset = np.random.randint(max_offset)
-#             else:
-#                 offset = 0
-#             data = np.pad(data, (offset, input_length - len(data) - offset), "constant")
-#         return data
-
-
 class FreesoundWave(Dataset):
     def __init__(self, config, frame, X, mode, transform=None):
         self.config = config
@@ -217,6 +165,12 @@ class FreesoundLogmelDiscontinuous(Dataset):
     #     return data
 
 
+class ToTensor(object):
+    def __call__(self, data):
+        tensor = torch.from_numpy(data).type(torch.FloatTensor)
+        return tensor
+
+
 class RandomHorizontalFlip(object):
     """Horizontally flip the given numpy randomly with a given probability.
 
@@ -272,7 +226,8 @@ class RandomFrequencyMask(object):
     mask parameter max_width, and f0 is chosen from 0, ν − f). ν is the number of mel frequency
     channels.
     """
-    def __init__(self, config, num_mask, max_width, replace=0):
+    def __init__(self, p, config, num_mask, max_width, replace='zero'):
+        self.p = p
         self.config = config
         self.num_mask = num_mask
         self.max_width = max_width
@@ -280,10 +235,18 @@ class RandomFrequencyMask(object):
 
     def __call__(self, spec):
         spec_c = spec.copy()
-        for i in range(self.num_mask):
-            f_0 = random.randint(0, self.config.n_mels-self.max_width-1)
-            f = random.randint(0, self.max_width)
-            spec_c[:, f_0:f_0+f, :] = self.replace
+
+        if random.random() < self.p:
+            for i in range(self.num_mask):
+                f_0 = random.randint(0, self.config.n_mels-self.max_width-1)
+                f = random.randint(0, self.max_width)
+                if self.replace == 'random':
+                    mask = np.random.rand(spec.shape[0], f, spec.shape[2])
+                elif self.replace == 'zero':
+                    mask = 0
+                else:
+                    raise ValueError("Replace not support {} value.".format(self.replace))
+                spec_c[:, f_0:f_0+f, :] = mask
 
         return spec_c
 
@@ -295,7 +258,8 @@ class RandomTimeMask(object):
     max_width, and t0 is chosen from [0, τ − t). We introduce an upper bound on the time
     mask so that a time mask cannot be wider than p times the number of time steps.
     """
-    def __init__(self, config, num_mask, max_width, replace=0):
+    def __init__(self, p, config, num_mask, max_width, replace='zero'):
+        self.p = p
         self.config = config
         self.num_mask = num_mask
         self.max_width = max_width
@@ -303,12 +267,68 @@ class RandomTimeMask(object):
 
     def __call__(self, spec):
         spec_c = spec.copy()
-        for i in range(self.num_mask):
-            t_0 = random.randint(0, self.config.n_mels-self.max_width-1)
-            t = random.randint(0, self.max_width)
-            spec_c[:, :, t_0:t_0+t] = self.replace
+
+        if random.random() < self.p:
+            for i in range(self.num_mask):
+                t_0 = random.randint(0, self.config.n_mels-self.max_width-1)
+                t = random.randint(0, self.max_width)
+                if self.replace == 'random':
+                    mask = np.random.rand(spec.shape[0], spec.shape[1], t)
+                elif self.replace == 'zero':
+                    mask = 0
+                else:
+                    raise ValueError("Replace not support {} value.".format(self.replace))
+                spec_c[:, :, t_0:t_0+t] = mask
 
         return spec_c
+
+
+class RandomErasing(object):
+    """
+    Class that performs Random Erasing in Random Erasing Data Augmentation.
+    -------------------------------------------------------------------------------------
+    probability: The probability that the operation will be performed.
+    sl: min erasing area
+    sh: max erasing area
+    r1: min aspect ratio
+    replace: 'zero', 'mean' or 'random' value
+    -------------------------------------------------------------------------------------
+    """
+
+    def __init__(self, probability=1, sl=0.02, sh=0.4, r1=0.3, replace='random'):
+        self.probability = probability
+        self.sl = sl
+        self.sh = sh
+        self.r1 = r1
+        self.replace = replace
+
+    def __call__(self, img):
+
+        if random.uniform(0, 1) > self.probability:
+            return img
+
+        for attempt in range(100):
+            area = img.shape[1] * img.shape[2]
+
+            target_area = random.uniform(self.sl, self.sh) * area
+            aspect_ratio = random.uniform(self.r1, 1 / self.r1)
+
+            h = int(round(math.sqrt(target_area * aspect_ratio)))
+            w = int(round(math.sqrt(target_area / aspect_ratio)))
+
+            if w < img.shape[2] and h < img.shape[1]:
+                x1 = random.randint(0, img.shape[1] - h)
+                y1 = random.randint(0, img.shape[2] - w)
+
+                if self.replace == 'zero':
+                    mask = np.zeros((3, h, w))
+                elif self.replace == 'random':
+                    mask = np.random.rand(3, h, w)
+
+                img[:, x1:x1 + h, y1:y1 + w] = mask
+
+                return img
+        return img
 
 
 def get_logmel_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
@@ -326,15 +346,19 @@ def get_logmel_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config)
 
     # composed = transforms.Compose([RandomHorizontalFlip(0.5)])
     composed_train = transforms.Compose([RandomCut2D(config),
-                                         RandomFrequencyMask(config, 1, 50),
-                                         RandomTimeMask(config, 1, 50)
+                                         RandomFrequencyMask(1, config, 1, 30),
+                                         RandomTimeMask(1, config, 1, 30),
+                                         # RandomErasing(),
+                                         # ToTensor(),
+                                         # transforms.Normalize([-25.890, -0.0144, -0.0028], [20.375, 1.048, 0.463]),
                                         ])
-
     composed_val = transforms.Compose([RandomCut2D(config),
-                                       # RandomFrequencyMask(config, 1, 30),
-                                       # RandomTimeMask(config, 1, 30)
+                                       RandomFrequencyMask(1, config, 1, 30),
+                                       RandomTimeMask(1, config, 1, 30)
+                                       # RandomErasing(),
+                                       # ToTensor(),
+                                       # transforms.Normalize([-25.890, -0.0144, -0.0028], [20.375, 1.048, 0.463]),
                                        ])
-
     # define train loader and val loader
     trainSet = FreesoundLogmel(config=config, frame=train_set, X=X,
                                transform=composed_train,
@@ -390,78 +414,54 @@ def get_wave_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
     return train_loader, val_loader
 
 
-class FATTrainDataset(Dataset):
-    def __init__(self, mels, labels, transforms):
-        super().__init__()
-        self.mels = mels
-        self.labels = labels
-        self.transforms = transforms
-
-    def __len__(self):
-        return len(self.mels)
-
-    def __getitem__(self, idx):
-        # crop 1sec
-        image = Image.fromarray(self.mels[idx], mode='RGB')
-        time_dim, base_dim = image.size
-        crop = random.randint(0, time_dim - base_dim)
-        image = image.crop([crop, 0, crop + base_dim, base_dim])
-        image = self.transforms(image).div_(255)
-
-        label = self.labels[idx]
-        label = torch.from_numpy(label).float()
-
-        return image, label
-
-
-class FATTestDataset(Dataset):
-    def __init__(self, fnames, mels, transforms, tta=5):
-        super().__init__()
-        self.fnames = fnames
-        self.mels = mels
-        self.transforms = transforms
-        self.tta = tta
-
-    def __len__(self):
-        return len(self.fnames) * self.tta
-
-    def __getitem__(self, idx):
-        new_idx = idx % len(self.fnames)
-
-        image = Image.fromarray(self.mels[new_idx], mode='RGB')
-        time_dim, base_dim = image.size
-        crop = random.randint(0, time_dim - base_dim)
-        image = image.crop([crop, 0, crop + base_dim, base_dim])
-        image = self.transforms(image).div_(255)
-
-        fname = self.fnames[new_idx]
-
-        return image, fname
-
-
 if __name__ == "__main__":
-    mels = {
-        'train_curated': '../../../features/fat2019_prep_mels1/mels_train_curated.pkl',
-        'train_noisy': '../../../features/fat2019_prep_mels1/mels_trn_noisy_best50s.pkl',
-        'test': '../../../features/fat2019_prep_mels1/mels_test.pkl'
-    }
 
-    with open(mels['train_curated'], 'rb') as curated:
-        x_train = pickle.load(curated)
+    X = load_data('/work/cocoxili/freesound-audio-tagging-2019/features/logmel_w100_s10_m128_trim/train_curated.pkl')
+    X = list(X.values())
 
-    # with open(mels['train_noisy'], 'rb') as noisy:
-    #     x_train.extend(pickle.load(noisy))
+    C0 = np.array([0])
+    for i in range(0, len(X), 2):
+        C0 = np.append(C0, X[i][0].flatten())
+        print(i, C0.shape)
+    C0_mean = np.mean(C0)
+    C0_std = np.std(C0)
+    print(C0_mean, C0_std)
 
-    # with open(mels['test'], 'rb') as test:
-    #     x_test = pickle.load(test)
+    C1 = np.array([0])
+    for i in range(0, len(X), 2):
+        C1 = np.append(C1, X[i][1].flatten())
+        print(i, C1.shape)
+    C1_mean = np.mean(C1)
+    C1_std = np.std(C1)
+    print(C1_mean, C1_std)
 
-    y_train = np.zeros((len(train_df), num_classes)).astype(int)
-    for i, row in enumerate(train_df['labels'].str.split(',')):
-        for label in row:
-            idx = labels.index(label)
-            y_train[i, idx] = 1
+    C2 = np.array([0])
+    for i in range(0, len(X), 2):
+        C2 = np.append(C2, X[i][2].flatten())
+        print(i, C2.shape)
+    C2_mean = np.mean(C2)
+    C2_std = np.std(C2)
+    #
+    print(C0_mean, C0_std)
+    print(C1_mean, C1_std)
+    print(C2_mean, C2_std)
 
-    y_train.shape
+    # for logmel_w100_s10_m128
+    # -26.586, 20.616
+    # -0.013, 1.042
+    # -0.0023, 0.4594
+
+    # for logmel_w100_s10_m128_trim
+    # -25.890, 20.375
+    # -0.0144, 1.048
+    # -0.0028, 0.463
+
+    # print(C0.shape)
+    # for i in range(len(X)):
+    #     m0, min0, max0 = np.mean(X[i][0]), np.min(X[i][0]), np.max(X[i][0])
+    #     m1, min1, max1 = np.mean(X[i][1]), np.min(X[i][1]), np.max(X[i][1])
+    #     m2, min2, max2 = np.mean(X[i][2]), np.min(X[i][2]), np.max(X[i][2])
+    #     print(m2, min2, max2)
 
     """
     # config = Config(sampling_rate=44100, audio_duration=1.5, features_dir="../data-22050")

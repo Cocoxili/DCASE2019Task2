@@ -51,11 +51,11 @@ class Baseline(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Dropout(0.2),
-            # nn.Linear(512, 128),
-            # nn.PReLU(),
-            # nn.BatchNorm1d(128),
-            # nn.Dropout(0.1),
-            nn.Linear(512, num_classes),
+            nn.Linear(512, 128),
+            nn.PReLU(),
+            nn.BatchNorm1d(128),
+            nn.Dropout(0.1),
+            nn.Linear(128, num_classes),
         )
 
     def forward(self, x):
