@@ -5,7 +5,8 @@ from util import *
 
 def define_model():
     # model = resnet18()
-    model = models.mobilenet_v2(num_classes=config.num_classes)
+    # model = models.mobilenet_v2(num_classes=config.num_classes, pretrained=config.pretrain)
+    model = mobilenetv2(pretrained=config.pretrain)
     # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
@@ -25,6 +26,8 @@ def define_model():
     # return vgg11(num_classes=config.num_classes)
     # return Baseline()
     # return TestCNN3()
+    # return pretrainedmodels.models.dpn98(num_classes=80, pretrained=False)
+    # return pretrainedmodels.resnext101_32x4d(num_classes=80, pretrained=None)
 
 
 def train():
@@ -47,14 +50,14 @@ def train():
     df_train_noisy.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
-    # X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy.pkl'))
+    # X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy50.pkl'))
     # X.update(X_nosiy)
 
     if config.debug:
         df_train_curated = df_train_curated[:500]
         df_train_noisy = df_train_noisy[:200]
 
-    skf = KFold(n_splits=config.n_folds, shuffle=True)
+    skf = StratifiedKFold(n_splits=config.n_folds, shuffle=True, random_state=1001)
 
     times = []
     results = []
@@ -62,7 +65,7 @@ def train():
 
         end = time.time()
 
-        train_loader, val_loader = get_logmel_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config)
+        train_loader, val_loader = get_logmel_loader(foldNum, df_train_curated, df_train_noisy, X, skf, config)
 
         model = define_model()
         # criterion = cross_entropy_onehot
@@ -103,30 +106,31 @@ def train():
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
-    config = Config(
+    config = Config(csv_train_curated='train_curated_stratified.csv',
                     csv_train_noisy='./trn_noisy_best50s.csv',
                     # csv_train_noisy='../input/train_noisy.csv',
                     sampling_rate=44100,
                     audio_duration=1.5,
                     frame_weigth=100,
-                    frame_shift=10,
+                    frame_shift=5,
                     n_folds=5,
-                    features_dir="../../../features/logmel_w100_s10_m128_trim_norm",
+                    features_dir="../../../features/logmel_w100_s5_m128_trim_norm",
                     # model_dir='../model/resnet',
                     model_dir='../model/test1',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='MobileNetV2',
+                    arch='mobilenet',
                     batch_size=32,
-                    lr=1e-3,
+                    lr=1e-4,
                     eta_min=1e-5,
                     weight_decay=5e-6,
                     mixup=False,
                     noisy_weight=1,
                     early_stopping=True,
                     label_smoothing=False,
-                    epochs=120,
+                    epochs=125,
+                    pretrain=False,
                     debug=False)
 
     # create log

@@ -16,7 +16,7 @@ class Config(object):
                  features_dir='../../../features/logmel+delta_w80_s10_m64',
                  model_dir='../model',
                  prediction_dir='../prediction',
-                 arch='resnet50', pretrain=False,
+                 arch='ResNet50', pretrain=False,
                  cuda=True, print_freq=100, epochs=80,
                  batch_size=32,
                  momentum=0.9, weight_decay=0,

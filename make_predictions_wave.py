@@ -3,7 +3,7 @@ from util import *
 from data_loader import *
 
 
-def make_prediction_files(input, order=True, mean_method='arithmetic'):
+def make_prediction_files(input, mean_method='arithmetic'):
     """
     make two prediction files for stacking. One for train and one for test.
     Prediction matrix of (num_samples, num_classes)
@@ -19,6 +19,12 @@ def make_prediction_files(input, order=True, mean_method='arithmetic'):
 
     LABELS = config.labels
     label_idx = {label: i for i, label in enumerate(LABELS)}
+
+    # df_train_curated.set_index("fname")
+    # df_train_curated["label_idx"] = df_train_curated['labels'].apply(multilabel_to_onehot, args=(label_idx,))
+    # df_train_curated["weight"] = [1 for i in range(len(df_train_curated))]
+    # df_train_curated.set_index("fname")
+
 
     train.set_index("fname")
     train["label_idx"] = train['labels'].apply(multilabel_to_onehot, args=(label_idx,))

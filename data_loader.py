@@ -57,12 +57,11 @@ class FreesoundWave(Dataset):
         return data
 
 
-class FreesoundLogmel(Dataset):
-    def __init__(self, config, frame, X, mode, transform=None):
+class FreesoundLogmelTrain(Dataset):
+    def __init__(self, config, frame, X, transform=None):
         self.config = config
         self.frame = frame
         self.transform = transform
-        self.mode = mode
         self.X = X
 
     def __len__(self):
@@ -70,21 +69,72 @@ class FreesoundLogmel(Dataset):
 
     def __getitem__(self, idx):
         fname = self.frame["fname"][idx]
-
-        # Read and Resample the audio
-        # data = self._random_selection(fname)
         data = self.X[fname]
 
         if self.transform is not None:
             data = self.transform(data)
 
-        if self.mode is "train":
-            label_idx = self.frame["label_idx"][idx]
-            weight = self.frame['weight'][idx]
-            return data, label_idx, np.float32(weight)
+        label_idx = self.frame["label_idx"][idx]
+        weight = self.frame['weight'][idx]
+        return data, label_idx, np.float32(weight)
 
-        elif self.mode is "test":
-            return data
+
+class FreesoundLogmelVal(Dataset):
+    def __init__(self, config, frame, X, transform=None, tta=1):
+        self.config = config
+        self.frame = frame
+        self.transform = transform
+        self.X = X
+        self.tta = tta
+
+    def __len__(self):
+        return self.frame.shape[0] * self.tta
+
+    def __getitem__(self, idx):
+        idx = idx // self.tta
+        fname = self.frame["fname"][idx]
+
+        data = self.X[fname]
+
+        if self.transform is not None:
+            data = self.transform(data)
+
+        label_idx = self.frame["label_idx"][idx]
+        weight = self.frame['weight'][idx]
+        return data, label_idx, np.float32(weight)
+
+
+# class FreesoundLogmel(Dataset):
+#     def __init__(self, config, frame, X, mode, transform=None):
+#         self.config = config
+#         self.frame = frame
+#         self.transform = transform
+#         self.mode = mode
+#         self.X = X
+#
+#     def __len__(self):
+#         return self.frame.shape[0]
+#
+#     def __getitem__(self, idx):
+#         fname = self.frame["fname"][idx]
+#
+#         # Read and Resample the audio
+#         # data = self._random_selection(fname)
+#
+#         olddata = self.X[fname]
+#         da = olddata[0, ::][np.newaxis, ::]
+#         data = np.concatenate((da, da, da), axis=0)
+#
+#         if self.transform is not None:
+#             data = self.transform(data)
+#
+#         if self.mode is "train":
+#             label_idx = self.frame["label_idx"][idx]
+#             weight = self.frame['weight'][idx]
+#             return data, label_idx, np.float32(weight)
+#
+#         elif self.mode is "test":
+#             return data
 
 
 class FreesoundLogmelDiscontinuous(Dataset):
@@ -331,49 +381,46 @@ class RandomErasing(object):
         return img
 
 
-def get_logmel_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
+def get_logmel_loader(foldNum, df_train_curated, df_train_noisy, X, skf, config):
 
-    # Get the nth item of a generator
-    train_split, val_split = next(itertools.islice(skf.split(df_train_curated), foldNum, foldNum + 1))
+    # train_split, val_split = next(
+    #     itertools.islice(skf.split(np.arange(len(df_train_noisy)), df_train_noisy['labels']), foldNum, foldNum + 1))
 
-    train_set = df_train_curated.iloc[train_split]
-    # train_set = pd.concat([train_set, df_train_noisy], sort=True)
+    train_set = df_train_curated[df_train_curated['fold'] != foldNum]
+    # train_set = pd.concat([train_set, df_train_noisy.iloc[train_split]], sort=True) # add noisy data
+    train_set = train_set.sample(frac=1)    # shuffle
     train_set = train_set.reset_index(drop=True)
-    val_set = df_train_curated.iloc[val_split]
+
+    val_set = df_train_curated[df_train_curated['fold'] == foldNum]
+    # val_set = pd.concat([val_set, df_train_noisy.iloc[val_split]], sort=True)
+    val_set = val_set.sample(frac=1)
     val_set = val_set.reset_index(drop=True)
+
     logging.info("Fold {0}, Train samples:{1}, val samples:{2}"
                  .format(foldNum, len(train_set), len(val_set)))
 
     # composed = transforms.Compose([RandomHorizontalFlip(0.5)])
     composed_train = transforms.Compose([RandomCut2D(config),
+                                         # RandomHorizontalFlip(0.5),
                                          RandomFrequencyMask(1, config, 1, 30),
                                          RandomTimeMask(1, config, 1, 30),
                                          # RandomErasing(),
                                          # ToTensor(),
-                                         # transforms.Normalize([-25.890, -0.0144, -0.0028], [20.375, 1.048, 0.463]),
                                         ])
     composed_val = transforms.Compose([RandomCut2D(config),
-                                       RandomFrequencyMask(1, config, 1, 30),
-                                       RandomTimeMask(1, config, 1, 30)
+                                       # RandomFrequencyMask(1, config, 1, 30),
+                                       # RandomTimeMask(1, config, 1, 30)
                                        # RandomErasing(),
                                        # ToTensor(),
-                                       # transforms.Normalize([-25.890, -0.0144, -0.0028], [20.375, 1.048, 0.463]),
                                        ])
     # define train loader and val loader
-    trainSet = FreesoundLogmel(config=config, frame=train_set, X=X,
-                               transform=composed_train,
-                               mode="train")
-    # trainSet = Freesound_logmel_discontinuous(config=config, frame=train_set, order=True,
-    #                      transform=transforms.Compose([ToTensor()]),
-    #                      mode="train")
+    trainSet = FreesoundLogmelTrain(config=config, frame=train_set, X=X,
+                                    transform=composed_train)
     train_loader = DataLoader(trainSet, batch_size=config.batch_size, shuffle=True, num_workers=1)
 
-    valSet = FreesoundLogmel(config=config, frame=val_set, X=X,
-                             transform=composed_val,
-                             mode="train")
-    # valSet = Freesound_logmel_discontinuous(config=config, frame=val_set, order=True,
-    #                      transform=transforms.Compose([ToTensor()]),
-    #                      mode="train")
+    valSet = FreesoundLogmelVal(config=config, frame=val_set, X=X,
+                                transform=composed_val,
+                                tta=3)
     val_loader = DataLoader(valSet, batch_size=config.batch_size, shuffle=False, num_workers=1)
 
     return train_loader, val_loader
@@ -415,53 +462,6 @@ def get_wave_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):
 
 
 if __name__ == "__main__":
-
-    X = load_data('/work/cocoxili/freesound-audio-tagging-2019/features/logmel_w100_s10_m128_trim/train_curated.pkl')
-    X = list(X.values())
-
-    C0 = np.array([0])
-    for i in range(0, len(X), 2):
-        C0 = np.append(C0, X[i][0].flatten())
-        print(i, C0.shape)
-    C0_mean = np.mean(C0)
-    C0_std = np.std(C0)
-    print(C0_mean, C0_std)
-
-    C1 = np.array([0])
-    for i in range(0, len(X), 2):
-        C1 = np.append(C1, X[i][1].flatten())
-        print(i, C1.shape)
-    C1_mean = np.mean(C1)
-    C1_std = np.std(C1)
-    print(C1_mean, C1_std)
-
-    C2 = np.array([0])
-    for i in range(0, len(X), 2):
-        C2 = np.append(C2, X[i][2].flatten())
-        print(i, C2.shape)
-    C2_mean = np.mean(C2)
-    C2_std = np.std(C2)
-    #
-    print(C0_mean, C0_std)
-    print(C1_mean, C1_std)
-    print(C2_mean, C2_std)
-
-    # for logmel_w100_s10_m128
-    # -26.586, 20.616
-    # -0.013, 1.042
-    # -0.0023, 0.4594
-
-    # for logmel_w100_s10_m128_trim
-    # -25.890, 20.375
-    # -0.0144, 1.048
-    # -0.0028, 0.463
-
-    # print(C0.shape)
-    # for i in range(len(X)):
-    #     m0, min0, max0 = np.mean(X[i][0]), np.min(X[i][0]), np.max(X[i][0])
-    #     m1, min1, max1 = np.mean(X[i][1]), np.min(X[i][1]), np.max(X[i][1])
-    #     m2, min2, max2 = np.mean(X[i][2]), np.min(X[i][2]), np.max(X[i][2])
-    #     print(m2, min2, max2)
 
     """
     # config = Config(sampling_rate=44100, audio_duration=1.5, features_dir="../data-22050")

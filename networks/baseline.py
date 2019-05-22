@@ -60,7 +60,9 @@ class Baseline(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        x = x.mean([2, 3])
+        x = torch.mean(x, dim=3)
+        x, _ = torch.max(x, dim=2)
+        # x = x.mean([2, 3])
         x = self.fc(x)
         return x
 

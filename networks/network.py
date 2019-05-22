@@ -42,3 +42,12 @@ def densenet121(**kwargs):
 def vgg11(**kwargs):
     model = models.vgg11_bn(**kwargs)
     return model
+
+
+def mobilenetv2(**kwargs):
+    model = models.mobilenet_v2(**kwargs)
+    model.classifier = nn.Sequential(
+        nn.Dropout(0.2),
+        nn.Linear(model.last_channel, 80),
+    )
+    return model

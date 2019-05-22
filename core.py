@@ -32,16 +32,28 @@ def train_on_fold(model, train_criterion, val_criterion,
     best_lwlrap = 0
     lowest_val_loss = 666.0
 
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80, 100], gamma=0.5)  # for logmel
-    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
-    exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
-    # exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=config.eta_min)
-    # exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.50, patience=5, verbose=True)
+    def lr_lamda_fn(epoch):
+        scale = 1.0
+        if epoch > 30:
+            scale = 0.5
+        if epoch > 60:
+            scale = 0.25
+        if epoch > 90:
+            scale = 0.1
+        return scale
+    # after_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30, 40], gamma=0.1)  # for wave
+    # after_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80, 100], gamma=0.5)  # for logmel
+    # after_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 140], gamma=0.1)  # for MTO-resnet
+    after_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=config.eta_min)
+    # after_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=config.eta_min)
+    # after_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.50, patience=5, verbose=True)
+    # after_scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lamda_fn)
+    scheduler = GradualWarmupScheduler(optimizer, multiplier=10, total_epoch=5, after_scheduler=after_scheduler)
 
     for epoch in range(config.epochs):
-        exp_lr_scheduler.step()
+        # exp_lr_scheduler.step()
         # exp_lr_scheduler.step(lwlrap)
+        scheduler.step()
 
         # train for one epoch
         train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win)
