@@ -100,8 +100,27 @@ class FreesoundLogmelVal(Dataset):
             data = self.transform(data)
 
         label_idx = self.frame["label_idx"][idx]
-        weight = self.frame['weight'][idx]
-        return data, label_idx, np.float32(weight)
+        return fname, data, label_idx
+
+
+class FreesoundLogmelTest(Dataset):
+    def __init__(self, config, frame, X, transform=None, tta=1):
+        self.config = config
+        self.frame = frame
+        self.transform = transform
+        self.X = X
+        self.tta = tta
+
+    def __len__(self):
+        return self.frame.shape[0] * self.tta
+
+    def __getitem__(self, idx):
+        idx = idx // self.tta
+        fname = self.frame["fname"][idx]
+        data = self.X[fname]
+        if self.transform is not None:
+            data = self.transform(data)
+        return fname, data
 
 
 # class FreesoundLogmel(Dataset):
@@ -424,6 +443,26 @@ def get_logmel_loader(foldNum, df_train_curated, df_train_noisy, X, skf, config)
     val_loader = DataLoader(valSet, batch_size=config.batch_size, shuffle=False, num_workers=1)
 
     return train_loader, val_loader
+
+
+def get_frame_split(foldNum, df_train_curated, df_train_noisy):
+
+    train_set = df_train_curated[df_train_curated['fold'] != foldNum]
+    # train_set = df_train_noisy[df_train_noisy['fold'] != foldNum]
+    # train_set = pd.concat([train_set, df_train_noisy[df_train_noisy['fold'] != foldNum]])  # add noisy data
+    train_set = train_set.sample(frac=1)    # shuffle
+    train_set = train_set.reset_index(drop=True)
+
+    val_set = df_train_curated[df_train_curated['fold'] == foldNum]
+    # val_set = df_train_noisy[df_train_noisy['fold'] == foldNum]
+    # val_set = pd.concat([val_set, df_train_noisy[df_train_noisy['fold'] == foldNum]])  # add noisy data
+    val_set = val_set.sample(frac=1)
+    val_set = val_set.reset_index(drop=True)
+
+    logging.info("Fold {0}, Train samples:{1}, val samples:{2}"
+                 .format(foldNum, len(train_set), len(val_set)))
+
+    return train_set, val_set
 
 
 def get_wave_loader(df_train_curated, df_train_noisy, X, skf, foldNum, config):

@@ -39,50 +39,7 @@ def wave_to_logmel(subset, wavelist):
             else:
                 delta = librosa.feature.delta(logmel)
                 accelerate = librosa.feature.delta(logmel, order=2)
-            feats = np.stack((logmel, delta, accelerate)) #(3, 64, xx)
-
-        X[item['fname']] = feats
-    return X
-
-
-def wave_to_logmel(subset, wavelist):
-    X = {}
-    if subset == 'test':
-        sub_dir = config.test_dir
-    elif subset == 'train_curated':
-        sub_dir = config.train_curated_dir
-    elif subset == 'train_noisy':
-        sub_dir = config.train_noisy_dir
-
-    for i, item in tqdm(wavelist.iterrows()):
-        file_path = os.path.join(sub_dir, item['fname'])
-
-        data, sr = librosa.load(file_path, config.sampling_rate)
-
-        data, _ = librosa.effects.trim(data)
-
-        # some audio file is empty, fill logmel with 0.
-        if len(data) == 0:
-            print("empty file:", file_path)
-            logmel = np.zeros((config.n_mels, 150))
-            feats = np.stack((logmel, logmel, logmel))
-        else:
-            melspec = librosa.feature.melspectrogram(data, sr,
-                                                     n_fft=config.n_fft, hop_length=config.hop_length,
-                                                     n_mels=config.n_mels)
-
-            logmel = librosa.core.power_to_db(melspec)
-            logmel = logmel.astype(np.float32)  # float32 make the feature much small
-
-            # if logmel.shape[1] < 10:
-            #     print("Too short audio:", file_path)
-            #     delta = np.zeros_like(logmel)
-            #     accelerate = np.zeros_like(logmel)
-            # else:
-            #     delta = librosa.feature.delta(logmel)
-            #     accelerate = librosa.feature.delta(logmel, order=2)
-            feats = logmel[np.newaxis, ::]
-            # feats = np.stack((logmel, delta, accelerate)) #(3, 64, xx)
+            feats = np.stack((logmel, delta, accelerate))
 
         X[item['fname']] = feats
     return X
@@ -166,29 +123,27 @@ if __name__ == '__main__':
                     csv_train_noisy='./trn_noisy_best50s.csv',
                     # csv_train_noisy='../input/train_noisy.csv',
                     sampling_rate=44100,
-                    n_mels=256,
+                    n_mels=128,
                     frame_weigth=100,
                     frame_shift=5,
-                    features_dir="../../../features/logmel_1c_w100_s5_m256_trim_norm",
+                    features_dir="../../../features/logmel_w100_s5_m128_trim_norm",
                     debug=False)
 
     # for logmel_w100_s10_m128_trim
-    # means = np.array([-26.6642, -0.0131, -0.0028])
-    # stds = np.array([20.1533, 1.0592, 0.4690])
+    means = np.array([-26.6642, -0.0131, -0.0028])
+    stds = np.array([20.1533, 1.0592, 0.4690])
 
     # for logmel_1c_w100_s5_m256_trim
-    means = np.array([-26.5654])
-    stds = np.array([19.7549])
+    # means = np.array([-26.5654])
+    # stds = np.array([19.7549])
 
     # X_test = get_logmel_feature(subset='test')
-    X_test = load_data('/home/cocoxili/work/freesound-audio-tagging-2019/features/logmel_1c_w100_s5_m256_trim/test.pkl')
-    X_test = logmel_normalize(X_test, means, stds)
-    save_data(os.path.join(config.features_dir, 'test.pkl'), X_test)
+    # X_test = logmel_normalize(X_test, means, stds)
+    # save_data(os.path.join(config.features_dir, 'test.pkl'), X_test)
 
     # X_train_curated = get_logmel_feature(subset='train_curated')
-    X_train_curated=load_data('/home/cocoxili/work/freesound-audio-tagging-2019/features/logmel_1c_w100_s5_m256_trim/train_curated.pkl')
-    X_train_curated = logmel_normalize(X_train_curated, means, stds)
-    save_data(os.path.join(config.features_dir, 'train_curated.pkl'), X_train_curated)
+    # X_train_curated = logmel_normalize(X_train_curated, means, stds)
+    # save_data(os.path.join(config.features_dir, 'train_curated.pkl'), X_train_curated)
 
     # X_train_noisy = get_logmel_feature(subset='train_noisy')
     # X_train_noisy = logmel_normalize(X_train_noisy, means, stds)
@@ -214,3 +169,7 @@ if __name__ == '__main__':
     # X.update(X1)
     # print(len(X))
     # calculate_mean_and_std(X, channel=1)
+    X = load_data(
+        '/home/cocoxili/work/freesound-audio-tagging-2019/features/logmel_w100_s5_m128_trim_norm/test.pkl')
+    print(X['001ed5f1.wav'])
+    print(X['001ed5f1.wav'].shape)

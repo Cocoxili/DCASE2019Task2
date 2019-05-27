@@ -97,18 +97,14 @@ def predict_one_model_with_logmel(checkpoint, frame, X):
     #  model = checkpoint['model']
     model = define_model()
     model.load_state_dict(checkpoint['state_dict'])
-    model = model.cuda()
-
     print("=> loaded checkpoint, best_lwlrap: {:.4f} @ {}"
           .format(checkpoint['best_lwlrap'], checkpoint['epoch']))
+    if config.cuda is True:
+        model.cuda()
+    model.eval()
 
     input_frame_length = int(config.audio_duration * 1000 / config.frame_shift)
     stride = 20
-
-    if config.cuda is True:
-        model.cuda()
-
-    model.eval()
 
     prediction = torch.zeros((1, config.num_classes)).cuda()
     file_names = []
@@ -131,10 +127,9 @@ def predict_one_model_with_logmel(checkpoint, frame, X):
 
             if config.cuda:
                 data = data.cuda()
-
             output = model(data)
             output = torch.sum(output, dim=0, keepdim=True)
-            output = F.sigmoid(output)
+            # output = F.sigmoid(output)
 
             prediction = torch.cat((prediction, output), dim=0)
             file_names.append(frame["fname"][idx])
@@ -161,11 +156,11 @@ if __name__ == "__main__":
                     sampling_rate=44100,
                     audio_duration=1.5,
                     frame_weigth=100,
-                    frame_shift=10,
+                    frame_shift=5,
 
-                    features_dir="../../../features/logmel_w100_s10_m128_trim_norm",
-                    model_dir='../model/test1',
-                    prediction_dir='../prediction/test1',
+                    features_dir="../../../features/logmel_w100_s5_m128_trim_norm",
+                    model_dir='../model/test3',
+                    prediction_dir='../prediction/test3',
 
                     # arch='MobileNetV2',
                     mixup=False,
@@ -173,5 +168,5 @@ if __name__ == "__main__":
                     early_stopping=True,
                     debug=False)
 
-    make_cv_prediction()
+    # make_cv_prediction()
     make_test_prediction()

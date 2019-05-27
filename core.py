@@ -15,7 +15,7 @@ def create_plot_window(vis, xlabel, ylabel, ytickmin, ytickmax, title):
 
 
 def train_on_fold(model, train_criterion, val_criterion,
-                  optimizer, train_loader, val_loader, config, fold, vis):
+                  optimizer, train_set, val_set, X, config, fold, vis):
 
     loss_window = create_plot_window(vis, '#Epochs', 'Loss', 0, 0.08, 'Train and Val Loss')
     val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 0, 0.9, 'Validation lwlrap')
@@ -56,10 +56,10 @@ def train_on_fold(model, train_criterion, val_criterion,
         scheduler.step()
 
         # train for one epoch
-        train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win)
+        train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fold, epoch, vis, win)
 
         # evaluate on validation set
-        lwlrap, val_loss = val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win)
+        lwlrap, val_loss = val_on_fold(model, val_set, X, val_criterion, config, epoch, vis, win)
 
         # remember best prec@1 and save checkpoint
         if not config.debug:
@@ -97,15 +97,33 @@ def train_on_fold(model, train_criterion, val_criterion,
     return best_lwlrap
 
 
-def train_one_epoch(train_loader, model, train_criterion, optimizer, config, fold, epoch, vis, win):
+def train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fold, epoch, vis, win):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
 
     # switch to train mode
     model.train()
-
     end = time.time()
+
+    T_max = 10
+    D_max = 5
+    D_min = 1
+
+    D = 1 / 2 * (D_max - D_min) * np.sin(2 * epoch / T_max * np.pi) + 1 / 2 * (D_max + D_min)
+    config.audio_duration = D
+    composed_train = transforms.Compose([RandomCut2D(config),
+                                         # RandomHorizontalFlip(0.5),
+                                         RandomFrequencyMask(1, config, 1, 30),
+                                         RandomTimeMask(1, config, 1, 30),
+                                         # RandomErasing(),
+                                         # ToTensor(),
+                                        ])
+
+    trainSet = FreesoundLogmelTrain(config=config, frame=train_set, X=X,
+                                    transform=composed_train)
+    train_loader = DataLoader(trainSet, batch_size=config.batch_size, shuffle=True, num_workers=4)
+
     for i, (input, target, weights) in enumerate(train_loader):
 
         if config.mixup:
@@ -167,7 +185,7 @@ def train_one_epoch(train_loader, model, train_criterion, optimizer, config, fol
     #          win=win['lr'], update='append')
 
 
-def val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win):
+def val_on_fold(model, val_set, X, val_criterion, config, epoch, vis, win):
     losses = AverageMeter()
 
     pred_all = torch.zeros(1, config.num_classes)
@@ -179,8 +197,21 @@ def val_on_fold(model, val_loader, val_criterion, config, epoch, vis, win):
     # switch to evaluate mode
     model.eval()
     end = time.time()
+
+    composed_val = transforms.Compose([RandomCut2D(config),
+                                       # RandomFrequencyMask(1, config, 1, 30),
+                                       # RandomTimeMask(1, config, 1, 30)
+                                       # RandomErasing(),
+                                       # ToTensor(),
+                                       ])
+    valSet = FreesoundLogmelVal(config=config, frame=val_set, X=X,
+                                transform=composed_val,
+                                tta=3)
+
+    val_loader = DataLoader(valSet, batch_size=config.batch_size, shuffle=False, num_workers=4)
+
     with torch.no_grad():
-        for i, (input, target, _) in enumerate(val_loader):
+        for i, (fname, input, target) in enumerate(val_loader):
             if config.cuda:
                 input, target = input.cuda(), target.cuda(non_blocking=True)
 

@@ -5,8 +5,8 @@ from util import *
 
 def define_model():
     # model = resnet18()
-    # model = models.mobilenet_v2(num_classes=config.num_classes, pretrained=config.pretrain)
-    model = mobilenetv2(pretrained=config.pretrain)
+    model = models.mobilenet_v2(num_classes=config.num_classes, pretrained=config.pretrain)
+    # model = mobilenetv2(pretrained=config.pretrain)
     # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
@@ -57,15 +57,14 @@ def train():
         df_train_curated = df_train_curated[:500]
         df_train_noisy = df_train_noisy[:200]
 
-    skf = StratifiedKFold(n_splits=config.n_folds, shuffle=True, random_state=1001)
-
     times = []
     results = []
     for foldNum in range(config.n_folds):
 
         end = time.time()
 
-        train_loader, val_loader = get_logmel_loader(foldNum, df_train_curated, df_train_noisy, X, skf, config)
+        # train_loader, val_loader = get_logmel_loader(foldNum, df_train_curated, df_train_noisy, X, skf, config)
+        train_set, val_set = get_frame_split(foldNum, df_train_curated, df_train_noisy)
 
         model = define_model()
         # criterion = cross_entropy_onehot
@@ -74,7 +73,6 @@ def train():
         # train_criterion = Q_BCE
 
         val_criterion = nn.BCEWithLogitsLoss()
-        # criterion = nn.KLDivLoss(reduction='batchmean')
 
         if config.cuda:
             model.cuda()
@@ -91,7 +89,7 @@ def train():
         cudnn.benchmark = True
 
         lwlrap = train_on_fold(model, train_criterion, val_criterion,
-                               optimizer, train_loader, val_loader, config, foldNum, vis)
+                               optimizer, train_set, val_set, X, config, foldNum, vis)
 
         time_on_fold = time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time()-end))
         times.append(time_on_fold)
@@ -109,7 +107,7 @@ if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
     config = Config(csv_train_curated='train_curated_stratified.csv',
-                    csv_train_noisy='./trn_noisy_best50s.csv',
+                    csv_train_noisy='./noisy50_stratified.csv',
                     # csv_train_noisy='../input/train_noisy.csv',
                     sampling_rate=44100,
                     audio_duration=1.5,
@@ -118,18 +116,18 @@ if __name__ == "__main__":
                     n_folds=5,
                     features_dir="../../../features/logmel_w100_s5_m128_trim_norm",
                     # model_dir='../model/resnet',
-                    model_dir='../model/test1',
+                    model_dir='../model/test2',
                     # prediction_dir='../prediction/mobileNetv2_test1',
                     arch='mobilenet',
                     batch_size=32,
                     lr=1e-4,
-                    eta_min=1e-5,
+                    eta_min=5e-6,
                     weight_decay=5e-6,
-                    mixup=False,
+                    mixup=True,
                     noisy_weight=1,
                     early_stopping=True,
                     label_smoothing=False,
-                    epochs=125,
+                    epochs=160,
                     pretrain=False,
                     debug=False)
 

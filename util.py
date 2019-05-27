@@ -329,3 +329,19 @@ def calculate_per_class_lwlrap(truth, scores):
 def calculate_lwlrap(truth, scores):
     per_class_lwlrap, weight_per_class = calculate_per_class_lwlrap(truth, scores)
     return np.sum(per_class_lwlrap * weight_per_class)
+
+
+def rank_array(a):
+    """
+    Re-value each row of a 2d array, span from 0 to len(a)
+    example:
+    a = [0.52, 0.45, 0.71, 0.62],
+        [0.51, 0.56, 0.02, 0.65]]
+    rank = [[1., 0., 3., 2.],
+            [1., 2., 0., 3.]]
+    """
+    rank = np.zeros_like(a)
+    for row in range(a.shape[0]):
+        for i, p in enumerate(a.argsort()[row]):
+            rank[row][p] = i
+    return rank
