@@ -126,16 +126,17 @@ def train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fol
 
     for i, (input, target, weights) in enumerate(train_loader):
 
-        if config.mixup:
-            # one_hot_labels = make_one_hot(target)
-            input, target = mixup(input, target, alpha=3)
-
-        # measure data loading time
-        data_time.update(time.time() - end)
-
         if config.cuda:
             input, target = input.cuda(), target.cuda(non_blocking=True)
             weights = weights.cuda(non_blocking=True)
+
+        if config.mixup:
+            # one_hot_labels = make_one_hot(target)
+            # input, target = mixup(input, target, 1)
+            input, target = mixup_data(input, target, 1.5, config.cuda)
+
+        # measure data loading time
+        data_time.update(time.time() - end)
 
         if config.label_smoothing:
             target = label_smooth(target, 0.99, 0.01)
@@ -250,30 +251,141 @@ def val_on_fold(model, val_set, X, val_criterion, config, epoch, vis, win):
     return lwlrap, losses.avg
 
 
-def mixup(data, one_hot_labels, alpha=1):
-    batch_size = data.size()[0]
+# def mixup(data, one_hot_labels, alpha):
+#     batch_size = data.size()[0]
+#
+#     weights = np.random.beta(alpha, alpha, batch_size)
+#     weights = torch.from_numpy(weights).type(torch.FloatTensor)
+#
+#     #  print('Mixup weights', weights)
+#     index = np.random.permutation(batch_size)
+#     x1, x2 = data, data[index]
+#
+#     x = torch.zeros_like(x1)
+#     for i in range(batch_size):
+#         for c in range(x.size()[1]):
+#             x[i][c] = x1[i][c] * weights[i] + x2[i][c] * (1 - weights[i])
+#
+#     y1 = one_hot_labels
+#     y2 = one_hot_labels[index]
+#
+#     y = torch.zeros_like(y1)
+#
+#     for i in range(batch_size):
+#         y[i] = y1[i] * weights[i] + y2[i] * (1 - weights[i])
+#
+#     return x, y
 
-    weights = np.random.beta(alpha, alpha, batch_size)
 
-    weights = torch.from_numpy(weights).type(torch.FloatTensor)
+def mixup_data(x, y, alpha=0.4, use_cuda=True):
+    """
+    Returns mixed inputs and targets
+    """
 
-    #  print('Mixup weights', weights)
-    index = np.random.permutation(batch_size)
-    x1, x2 = data, data[index]
+    batch_size = x.size(0)
 
-    x = torch.zeros_like(x1)
-    for i in range(batch_size):
-        for c in range(x.size()[1]):
-            x[i][c] = x1[i][c] * weights[i] + x2[i][c] * (1 - weights[i])
+    lam = np.random.beta(alpha, alpha, batch_size)
+    lam = np.concatenate([lam[:, None], 1 - lam[:, None]], 1).max(1)
 
-    y1 = one_hot_labels
-    y2 = one_hot_labels[index]
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+        lam = torch.from_numpy(lam).type(torch.FloatTensor).cuda()
+    else:
+        index = torch.randperm(batch_size)
+        lam = torch.from_numpy(lam).type(torch.FloatTensor)
 
-    y = torch.zeros_like(y1)
+    mixed_x = lam.view(batch_size, 1, 1, 1) * x + (1 - lam).view(batch_size, 1, 1, 1) * x[index, :]
+    mixed_y = lam.view(batch_size, 1) * y + (1 - lam).view(batch_size, 1) * y[index, :]
 
-    for i in range(batch_size):
-        y[i] = y1[i] * weights[i] + y2[i] * (1 - weights[i])
-
-    return x, y
+    return mixed_x, mixed_y
 
 
+def mixup_with_curated_dominate(x, y, alpha=0.4, use_cuda=True):
+    """
+    Returns mixed inputs and targets
+    """
+
+    batch_size = x.size(0)
+
+    lam = np.random.beta(alpha, alpha, batch_size)
+    lam = np.concatenate([lam[:, None], 1 - lam[:, None]], 1).max(1)
+
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+        lam = torch.from_numpy(lam).type(torch.FloatTensor).cuda()
+    else:
+        index = torch.randperm(batch_size)
+        lam = torch.from_numpy(lam).type(torch.FloatTensor)
+
+    mixed_x = lam.view(batch_size, 1, 1, 1) * x + (1 - lam).view(batch_size, 1, 1, 1) * x[index, :]
+    mixed_y = lam.view(batch_size, 1) * y + (1 - lam).view(batch_size, 1) * y[index, :]
+
+    return mixed_x, mixed_y
+#
+# class MixUpCallback(LearnerCallback):
+#     "Callback that creates the mixed-up input and target."
+#
+#     def __init__(self, learn: Learner, alpha: float = 0.4, stack_x: bool = False, stack_y: bool = True):
+#         super().__init__(learn)
+#         self.alpha, self.stack_x, self.stack_y = alpha, stack_x, stack_y
+#
+#     def on_train_begin(self, **kwargs):
+#         if self.stack_y: self.learn.loss_func = MixUpLoss(self.learn.loss_func)
+#
+#     def on_batch_begin(self, last_input, last_target, train, **kwargs):
+#         "Applies mixup to `last_input` and `last_target` if `train`."
+#         if not train: return
+#         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
+#         lambd = np.concatenate([lambd[:, None], 1 - lambd[:, None]], 1).max(1)
+#         lambd = last_input.new(lambd)
+#         shuffle = torch.randperm(last_target.size(0)).to(last_input.device)
+#         x1, y1 = last_input[shuffle], last_target[shuffle]
+#         if self.stack_x:
+#             new_input = [last_input, last_input[shuffle], lambd]
+#         else:
+#             new_input = (
+#                         last_input * lambd.view(lambd.size(0), 1, 1, 1) + x1 * (1 - lambd).view(lambd.size(0), 1, 1, 1))
+#         if self.stack_y:
+#             new_target = torch.cat([last_target[:, None].float(), y1[:, None].float(), lambd[:, None].float()], 1)
+#         else:
+#             if len(last_target.shape) == 2:
+#                 lambd = lambd.unsqueeze(1).float()
+#             new_target = last_target.float() * lambd + y1.float() * (1 - lambd)
+#         return {'last_input': new_input, 'last_target': new_target}
+#
+#     def on_train_end(self, **kwargs):
+#         if self.stack_y: self.learn.loss_func = self.learn.loss_func.get_old()
+#
+#
+# class MixUpLoss(nn.Module):
+#     "Adapt the loss function `crit` to go with mixup."
+#
+#     def __init__(self, crit, reduction='mean'):
+#         super().__init__()
+#         if hasattr(crit, 'reduction'):
+#             self.crit = crit
+#             self.old_red = crit.reduction
+#             setattr(self.crit, 'reduction', 'none')
+#         else:
+#             self.crit = partial(crit, reduction='none')
+#             self.old_crit = crit
+#         self.reduction = reduction
+#
+#     def forward(self, output, target):
+#         if len(target.size()) == 2:
+#             loss1, loss2 = self.crit(output, target[:, 0].long()), self.crit(output, target[:, 1].long())
+#             d = (loss1 * target[:, 2] + loss2 * (1 - target[:, 2])).mean()
+#         else:
+#             d = self.crit(output, target)
+#         if self.reduction == 'mean':
+#             return d.mean()
+#         elif self.reduction == 'sum':
+#             return d.sum()
+#         return d
+#
+#     def get_old(self):
+#         if hasattr(self, 'old_crit'):
+#             return self.old_crit
+#         elif hasattr(self, 'old_red'):
+#             setattr(self.crit, 'reduction', self.old_red)
+#             return self.crit

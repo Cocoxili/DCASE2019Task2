@@ -449,7 +449,7 @@ def get_frame_split(foldNum, df_train_curated, df_train_noisy):
 
     train_set = df_train_curated[df_train_curated['fold'] != foldNum]
     # train_set = df_train_noisy[df_train_noisy['fold'] != foldNum]
-    # train_set = pd.concat([train_set, df_train_noisy[df_train_noisy['fold'] != foldNum]])  # add noisy data
+    train_set = pd.concat([train_set, df_train_noisy[df_train_noisy['fold'] != foldNum]])  # add noisy data
     train_set = train_set.sample(frac=1)    # shuffle
     train_set = train_set.reset_index(drop=True)
 

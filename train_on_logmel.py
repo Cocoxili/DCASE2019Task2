@@ -50,8 +50,8 @@ def train():
     df_train_noisy.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
-    # X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy50.pkl'))
-    # X.update(X_nosiy)
+    X_nosiy = load_data(os.path.join(config.features_dir, 'train_noisy50.pkl'))
+    X.update(X_nosiy)
 
     if config.debug:
         df_train_curated = df_train_curated[:500]
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                     noisy_weight=1,
                     early_stopping=True,
                     label_smoothing=False,
-                    epochs=160,
+                    epochs=200,
                     pretrain=False,
                     debug=False)
 
