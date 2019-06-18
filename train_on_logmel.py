@@ -6,9 +6,9 @@ from util import *
 def define_model():
     # model = resnet18()
     # model = models.mobilenet_v2(num_classes=config.num_classes, pretrained=config.pretrain)
-    # model = mobilenetv2(pretrained=config.pretrain)
+    model = mobilenetv2(pretrained=config.pretrain)
     # model = mobilenetv3_large(pretrained=config.pretrain)
-    model = mobilenetv3(pretrain=None, n_class=80, mode='large', width_mult=1.5)
+    # model = mobilenetv3(pretrain=None, n_class=80, mode='large', width_mult=1.5)
     # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
@@ -37,7 +37,7 @@ def train():
     vis = visdom.Visdom()
 
     df_train_curated = pd.read_csv(config.CSV_TRAIN_CURATED)
-    df_train_curated2 = pd.read_csv('../../../input/filtered_noisy50.csv')
+    # df_train_curated2 = pd.read_csv('../../../input/filtered_noisy50.csv')
     df_train_noisy = pd.read_csv(config.CSV_TRAIN_NOISY)
 
     LABELS = config.labels
@@ -48,10 +48,10 @@ def train():
     df_train_curated["weight"] = [1 for i in range(len(df_train_curated))]
     df_train_curated.set_index("fname")
 
-    df_train_curated2.set_index("fname")
-    df_train_curated2["label_idx"] = df_train_curated2['labels'].apply(multilabel_to_onehot, args=(label_idx,))
-    df_train_curated2["weight"] = [1 for i in range(len(df_train_curated2))]
-    df_train_curated2.set_index("fname")
+    # df_train_curated2.set_index("fname")
+    # df_train_curated2["label_idx"] = df_train_curated2['labels'].apply(multilabel_to_onehot, args=(label_idx,))
+    # df_train_curated2["weight"] = [1 for i in range(len(df_train_curated2))]
+    # df_train_curated2.set_index("fname")
 
     df_train_noisy.set_index("fname")
     df_train_noisy["label_idx"] = df_train_noisy['labels'].apply(multilabel_to_onehot, args=(label_idx,))
@@ -59,8 +59,8 @@ def train():
     df_train_noisy.set_index("fname")
 
     X = load_data(os.path.join(config.features_dir, 'train_curated.pkl'))
-    X_nosiy = load_data(os.path.join(config.features_dir, 'filtered_noisy50.pkl'))
-    X.update(X_nosiy)
+    # X_nosiy = load_data(os.path.join(config.features_dir, 'filtered_noisy50.pkl'))
+    # X.update(X_nosiy)
 
     if config.debug:
         df_train_curated = df_train_curated[:500]
@@ -73,8 +73,8 @@ def train():
         end = time.time()
 
         curated_df = df_train_curated[df_train_curated['fold'] != foldNum]
-        curated_df2 = df_train_curated2[df_train_curated2['fold'] != foldNum]
-        curated_df = pd.concat([curated_df, curated_df2])  # add noisy data
+        # curated_df2 = df_train_curated2[df_train_curated2['fold'] != foldNum]
+        # curated_df = pd.concat([curated_df, curated_df2])  # add noisy data
         curated_df = curated_df.sample(frac=1)  # shuffle
         curated_df = curated_df.reset_index(drop=True)
 
@@ -142,7 +142,7 @@ if __name__ == "__main__":
                     # model_dir='../model/resnet',
                     model_dir='../model/test1',
                     # prediction_dir='../prediction/mobileNetv2_test1',
-                    arch='mobilenetv3x1.5',
+                    arch='mobilenetv2',
                     batch_size=16,
                     lr=1e-4,
                     eta_min=1e-6,
