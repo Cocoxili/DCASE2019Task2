@@ -5,7 +5,10 @@ from data_loader import *
 
 def define_model():
     # model = resnet18()
-    model = models.mobilenet_v2(num_classes=config.num_classes)
+    # model = models.mobilenet_v2(num_classes=config.num_classes)
+    # model = mobilenetv2(pretrain=config.pretrain, num_classes=config.num_classes, width_mult=1.5)
+    # model = mobilenetv3(pretrain=config.pretrain, n_class=80, mode='large', width_mult=1.5)
+    model = mobilenetv2(pretrained=config.pretrain)
     # model = models.shufflenetv2_x0_5(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_0(num_classes=config.num_classes)
     # model = models.shufflenetv2_x1_5(num_classes=config.num_classes)
@@ -25,6 +28,15 @@ def define_model():
     # return vgg11(num_classes=config.num_classes)
     # return Baseline()
     # return TestCNN3()
+
+
+def define_model2():
+    # model = resnet18()
+    # model = models.mobilenet_v2(num_classes=config.num_classes)
+    # model = mobilenetv2(pretrain=config.pretrain, num_classes=config.num_classes, width_mult=1.5)
+    # model = mobilenetv3(pretrain=config.pretrain, n_class=80, mode='large', width_mult=1.5)
+    model = mobilenetv2(pretrained=False)
+    return model
 
 
 def validate(duration_set, num_clips):
@@ -157,6 +169,7 @@ def test(duration_set, num_clips):
 
     predictions = []
     for foldNum in range(config.n_folds):
+    # for foldNum in range(5,6):
         end = time.time()
 
         print("Prediction on Fold {0}, Val samples:{1}".format(foldNum, len(test_df)))
@@ -173,11 +186,12 @@ def test(duration_set, num_clips):
         for audio_duration in duration_set:
             print('audio duration: {}'.format(audio_duration))
             fn, pred = test_on_fold(model, test_df, X, audio_duration, num_clips)
-            # print(pred)
-            # pred = rank_array(pred)
-            # pred = torch.from_numpy(pred)
-            # pred = torch.softmax(pred, dim=1)
-            # print(pred)
+
+            mean = np.mean(pred)
+            std = np.std(pred)
+            print(mean, std)
+            pred = (pred-mean) / std
+
             predictions.append(pred)
         # measure elapsed time
         print('Time {:.1f}'.format(time.time()-end))
@@ -189,10 +203,79 @@ def test(duration_set, num_clips):
     save_to_csv(fn, predictions, 'test_predictions.csv')
 
 
-def test_ensamble(duration_set, num_clips):
+# def test_ensamble(models, duration_set, num_clips):
+#     """
+#     Test with augmentation
+#     :param num_clips: clips number of each duration view.
+#     :return: Prediction on n_fold models.
+#     """
+#     test_df = pd.read_csv(config.CSV_SBM)
+#     #  test_set = test_set[:50] # for debug
+#
+#     test_df.set_index("fname")
+#     X = load_data(os.path.join(config.features_dir, 'test.pkl'))
+#
+#     predictions = []
+#     for foldNum in range(config.n_folds):
+#         end = time.time()
+#
+#         print("Prediction on Fold {0}, Val samples:{1}".format(foldNum, len(test_df)))
+#         ckp = os.path.join(config.model_dir, 'model_best.%d.pth.tar' % foldNum)
+#         checkpoint = torch.load(ckp)
+#         model = define_model()
+#         model.load_state_dict(checkpoint['state_dict'])
+#         print("=> loaded checkpoint {}, best_lwlrap: {:.4f} @ {}"
+#               .format(ckp, checkpoint['best_lwlrap'], checkpoint['epoch']))
+#         if config.cuda is True:
+#             model.cuda()
+#         model.eval()
+#
+#         for audio_duration in duration_set:
+#             print('audio duration: {}'.format(audio_duration))
+#             fn, pred = test_on_fold(model, test_df, X, audio_duration, num_clips)
+#
+#             mean = np.mean(pred)
+#             std = np.std(pred)
+#             print(mean, std)
+#             pred = (pred - mean) / std
+#
+#             predictions.append(pred)
+#
+#         # model 2
+#         print("Prediction on Fold {0}, Val samples:{1}".format(foldNum, len(test_df)))
+#         ckp = os.path.join('../../exp9/model/curated_mixup_yv2_cv864', 'model_best.%d.pth.tar' % foldNum)
+#         checkpoint = torch.load(ckp)
+#         model = define_model2()
+#         model.load_state_dict(checkpoint['state_dict'])
+#         print("=> loaded checkpoint {}, best_lwlrap: {:.4f} @ {}"
+#               .format(ckp, checkpoint['best_lwlrap'], checkpoint['epoch']))
+#         if config.cuda is True:
+#             model.cuda()
+#         model.eval()
+#
+#         for audio_duration in duration_set:
+#             print('audio duration: {}'.format(audio_duration))
+#             fn, pred = test_on_fold(model, test_df, X, audio_duration, num_clips)
+#
+#             mean = np.mean(pred)
+#             std = np.std(pred)
+#             print(mean, std)
+#             pred = (pred-mean) / std
+#
+#             predictions.append(pred)
+#         # measure elapsed time
+#         print('Time {:.1f}'.format(time.time()-end))
+#
+#     predictions = np.array(predictions)
+#     print(predictions.shape)
+#     predictions = predictions.mean(axis=0)
+#     print(predictions.shape)
+#     save_to_csv(fn, predictions, 'test_predictions.csv')
+
+
+def test_ensamble(models, model_arch, duration_set, num_clips):
     """
     Test with augmentation
-    :param num_clips: clips number of each duration view.
     :return: Prediction on n_fold models.
     """
     test_df = pd.read_csv(config.CSV_SBM)
@@ -202,59 +285,41 @@ def test_ensamble(duration_set, num_clips):
     X = load_data(os.path.join(config.features_dir, 'test.pkl'))
 
     predictions = []
-    for foldNum in range(config.n_folds):
+    for idx, model_dir in enumerate(models):
+        pred_model = []
         end = time.time()
+        for foldNum in range(config.n_folds):
+            #             print("Prediction {0} on Fold {1}".format(model_dir, foldNum))
+            ckp = os.path.join(model_dir, 'model_best.%d.pth.tar' % foldNum)
+            checkpoint = torch.load(ckp)
+            model = model_arch[idx]
+            model.load_state_dict(checkpoint['state_dict'])
+            print("=> Loaded checkpoint {}, best_lwlrap: {:.4f} @ {}"
+                  .format(ckp, checkpoint['best_lwlrap'], checkpoint['epoch']))
+            if config.cuda is True:
+                model.cuda()
+            model.eval()
 
-        print("Prediction on Fold {0}, Val samples:{1}".format(foldNum, len(test_df)))
-        ckp = os.path.join(config.model_dir, 'model_best.%d.pth.tar' % foldNum)
-        checkpoint = torch.load(ckp)
-        model = define_model()
-        model.load_state_dict(checkpoint['state_dict'])
-        print("=> loaded checkpoint {}, best_lwlrap: {:.4f} @ {}"
-              .format(ckp, checkpoint['best_lwlrap'], checkpoint['epoch']))
-        if config.cuda is True:
-            model.cuda()
-        model.eval()
+            for audio_duration in duration_set:
+                #                 print('audio duration: {}'.format(audio_duration))
+                fn, pred = test_on_fold(model, test_df, X, audio_duration, num_clips)
+                pred_model.append(pred)
 
-        for audio_duration in duration_set:
-            print('audio duration: {}'.format(audio_duration))
-            fn, pred = test_on_fold(model, test_df, X, audio_duration, num_clips)
-            # print(pred)
-            # pred = rank_array(pred)
-            # pred = torch.from_numpy(pred)
-            # pred = torch.softmax(pred, dim=1)
-            # print(pred)
-            predictions.append(pred)
+        pred_model = np.array(pred_model)
+        pred_model = pred_model.mean(axis=0)
 
-        # model 2
-        print("Prediction on Fold {0}, Val samples:{1}".format(foldNum, len(test_df)))
-        ckp = os.path.join('../model/test2', 'model_best.%d.pth.tar' % foldNum)
-        checkpoint = torch.load(ckp)
-        model = define_model()
-        model.load_state_dict(checkpoint['state_dict'])
-        print("=> loaded checkpoint {}, best_lwlrap: {:.4f} @ {}"
-              .format(ckp, checkpoint['best_lwlrap'], checkpoint['epoch']))
-        if config.cuda is True:
-            model.cuda()
-        model.eval()
+        mean = np.mean(pred_model)
+        std = np.std(pred_model)
+        pred_model = (pred - mean) / std
+        predictions.append(pred_model)
 
-        for audio_duration in duration_set:
-            print('audio duration: {}'.format(audio_duration))
-            fn, pred = test_on_fold(model, test_df, X, audio_duration, num_clips)
-            # print(pred)
-            # pred = rank_array(pred)
-            # pred = torch.from_numpy(pred)
-            # pred = torch.softmax(pred, dim=1)
-            # print(pred)
-            predictions.append(pred)
-        # measure elapsed time
-        print('Time {:.1f}'.format(time.time()-end))
+        print('Model time: ', time.strftime('%Hh:%Mm:%Ss', time.gmtime(time.time() - end)))
 
     predictions = np.array(predictions)
     print(predictions.shape)
     predictions = predictions.mean(axis=0)
     print(predictions.shape)
-    save_to_csv(fn, predictions, 'test_predictions.csv')
+    save_to_csv(fn, predictions, 'submission.csv')
 
 
 def test_on_fold(model, test_df, X, audio_duration, num_clips):
@@ -305,7 +370,7 @@ def save_to_csv(files_name, prediction, file):
 if __name__ == "__main__":
     seed_everything(1001)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
     config = Config(csv_train_curated='train_curated_stratified.csv',
                     csv_train_noisy='./trn_noisy_best50s.csv',
@@ -317,10 +382,11 @@ if __name__ == "__main__":
                     frame_shift=5,
 
                     features_dir="../../../features/logmel_w100_s5_m128_trim_norm",
-                    model_dir='../model/test1',
-                    prediction_dir='../prediction/test4',
+                    model_dir='../model/DM_yv2_cv8688',
+                    prediction_dir='../prediction/test2',
 
                     # arch='MobileNetV2',
+                    pretrain=None,
                     mixup=False,
                     noisy_weight=1,
                     early_stopping=True,
@@ -331,6 +397,18 @@ if __name__ == "__main__":
     # validate(duration_set=[4], num_clips=10)
     # validate(duration_set=[4], num_clips=10)
     # validate(duration_set=[2, 3, 4, 5], num_clips=3)
-    # test(duration_set=[3, 4, 5], num_clips=5)
+    # test(duration_set=[3, 4, 5], num_clips=10)
     # test(duration_set=[5], num_clips=10)
-    test_ensamble(duration_set=[3, 4, 5], num_clips=5)
+    # test_ensamble(duration_set=[3, 4, 5], num_clips=10)
+
+    model_dir0 = '../model/DM_v3x1.5_cv844'
+    model_dir1 = '../../exp9/model/curated_yv2_cv853'  # LB705
+    model_dir2 = '../../exp9/model/curated_mixup_yv2_cv8678/'  # LB707
+    model_dir3 = '../../exp9/model/curated_filter50_yv2_cv856/'
+    model_dir4 = '../model/DM_yv2_cv8688'   # LB711
+
+    models = [model_dir0, model_dir1, model_dir2, model_dir3, model_dir4]
+    model_arch = [mobilenetv3(pretrain=None, n_class=80, mode='large', width_mult=1.5),
+                  mobilenetv2(), mobilenetv2(), mobilenetv2(), mobilenetv2()]
+
+    test_ensamble(models, model_arch, duration_set=[3, 4, 5], num_clips=3)

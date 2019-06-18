@@ -15,7 +15,7 @@ def create_plot_window(vis, xlabel, ylabel, ytickmin, ytickmax, title):
 
 
 def train_on_fold(model, train_criterion, val_criterion,
-                  optimizer, train_set, val_set, X, config, fold, vis):
+                  optimizer, curated_df, noisy_df, val_set, X, config, fold, vis):
 
     loss_window = create_plot_window(vis, '#Epochs', 'Loss', 0, 0.08, 'Train and Val Loss')
     val_lwlrap_window = create_plot_window(vis, '#Epochs', 'lwlrap', 0, 0.9, 'Validation lwlrap')
@@ -56,7 +56,7 @@ def train_on_fold(model, train_criterion, val_criterion,
         scheduler.step()
 
         # train for one epoch
-        train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fold, epoch, vis, win)
+        train_one_epoch(curated_df, noisy_df, X, model, train_criterion, optimizer, config, fold, epoch, vis, win)
 
         # evaluate on validation set
         lwlrap, val_loss = val_on_fold(model, val_set, X, val_criterion, config, epoch, vis, win)
@@ -97,7 +97,7 @@ def train_on_fold(model, train_criterion, val_criterion,
     return best_lwlrap
 
 
-def train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fold, epoch, vis, win):
+def train_one_epoch(curated_df, noisy_df, X, model, train_criterion, optimizer, config, fold, epoch, vis, win):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -106,34 +106,37 @@ def train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fol
     model.train()
     end = time.time()
 
-    T_max = 10
+    T_max = 15
     D_max = 5
-    D_min = 1
+    D_min = 2
 
     D = 1 / 2 * (D_max - D_min) * np.sin(2 * epoch / T_max * np.pi) + 1 / 2 * (D_max + D_min)
     config.audio_duration = D
-    composed_train = transforms.Compose([RandomCut2D(config),
+    composed_train = transforms.Compose([
+                                         # RandomCut2D(config),
                                          # RandomHorizontalFlip(0.5),
-                                         RandomFrequencyMask(1, config, 1, 30),
-                                         RandomTimeMask(1, config, 1, 30),
+                                         RandomFrequencyMask(1, config, 1, 0.2),
+                                         RandomTimeMask(1, config, 1, 0.1),
                                          # RandomErasing(),
                                          # ToTensor(),
                                         ])
 
-    trainSet = FreesoundLogmelTrain(config=config, frame=train_set, X=X,
-                                    transform=composed_train)
-    train_loader = DataLoader(trainSet, batch_size=config.batch_size, shuffle=True, num_workers=4)
+    # trainSet = FreesoundDominateMixupWithCurated(config=config, alpha=1, curated_df=curated_df, noisy_df=noisy_df,
+    #                                   X=X, transform=composed_train)
+    trainSet = FreesoundDominateMixup(config=config, alpha=1, curated_df=curated_df, noisy_df=noisy_df,
+                                      X=X, transform=composed_train)
+    train_loader = DataLoader(trainSet, batch_size=config.batch_size, shuffle=True, num_workers=4,
+                              worker_init_fn=worker_init_fn)
 
-    for i, (input, target, weights) in enumerate(train_loader):
+    for i, (input, target) in enumerate(train_loader):
 
         if config.cuda:
             input, target = input.cuda(), target.cuda(non_blocking=True)
-            weights = weights.cuda(non_blocking=True)
 
-        if config.mixup:
+        # if config.mixup:
             # one_hot_labels = make_one_hot(target)
             # input, target = mixup(input, target, 1)
-            input, target = mixup_data(input, target, 1.5, config.cuda)
+            # input, target = mixup_data(input, target, 1.5, config.cuda)
 
         # measure data loading time
         data_time.update(time.time() - end)
@@ -148,7 +151,6 @@ def train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fol
         # print("target:", target.size(), target.type())  # ([bs, num_class])
         loss = train_criterion(output, target)
         # print(loss.size())
-        loss = torch.mean(torch.mean(loss, dim=1)*weights)
 
         # measure accuracy and record loss
         losses.update(loss.item(), input.size(0))
@@ -184,6 +186,7 @@ def train_one_epoch(train_set, X, model, train_criterion, optimizer, config, fol
              win=win['loss'], update='append')
     # vis.line(X=np.array([epoch]), Y=np.array([optimizer.param_groups[0]['lr']]),
     #          win=win['lr'], update='append')
+    return losses.avg
 
 
 def val_on_fold(model, val_set, X, val_criterion, config, epoch, vis, win):
@@ -251,141 +254,23 @@ def val_on_fold(model, val_set, X, val_criterion, config, epoch, vis, win):
     return lwlrap, losses.avg
 
 
-# def mixup(data, one_hot_labels, alpha):
-#     batch_size = data.size()[0]
-#
-#     weights = np.random.beta(alpha, alpha, batch_size)
-#     weights = torch.from_numpy(weights).type(torch.FloatTensor)
-#
-#     #  print('Mixup weights', weights)
-#     index = np.random.permutation(batch_size)
-#     x1, x2 = data, data[index]
-#
-#     x = torch.zeros_like(x1)
-#     for i in range(batch_size):
-#         for c in range(x.size()[1]):
-#             x[i][c] = x1[i][c] * weights[i] + x2[i][c] * (1 - weights[i])
-#
-#     y1 = one_hot_labels
-#     y2 = one_hot_labels[index]
-#
-#     y = torch.zeros_like(y1)
-#
-#     for i in range(batch_size):
-#         y[i] = y1[i] * weights[i] + y2[i] * (1 - weights[i])
-#
-#     return x, y
-
-
-def mixup_data(x, y, alpha=0.4, use_cuda=True):
+def mixup(x, y, alpha=1.0, use_cuda=True):
     """
     Returns mixed inputs and targets
     """
 
-    batch_size = x.size(0)
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
 
-    lam = np.random.beta(alpha, alpha, batch_size)
-    lam = np.concatenate([lam[:, None], 1 - lam[:, None]], 1).max(1)
-
+    batch_size = x.size()[0]
     if use_cuda:
         index = torch.randperm(batch_size).cuda()
-        lam = torch.from_numpy(lam).type(torch.FloatTensor).cuda()
     else:
         index = torch.randperm(batch_size)
-        lam = torch.from_numpy(lam).type(torch.FloatTensor)
 
-    mixed_x = lam.view(batch_size, 1, 1, 1) * x + (1 - lam).view(batch_size, 1, 1, 1) * x[index, :]
-    mixed_y = lam.view(batch_size, 1) * y + (1 - lam).view(batch_size, 1) * y[index, :]
-
-    return mixed_x, mixed_y
-
-
-def mixup_with_curated_dominate(x, y, alpha=0.4, use_cuda=True):
-    """
-    Returns mixed inputs and targets
-    """
-
-    batch_size = x.size(0)
-
-    lam = np.random.beta(alpha, alpha, batch_size)
-    lam = np.concatenate([lam[:, None], 1 - lam[:, None]], 1).max(1)
-
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-        lam = torch.from_numpy(lam).type(torch.FloatTensor).cuda()
-    else:
-        index = torch.randperm(batch_size)
-        lam = torch.from_numpy(lam).type(torch.FloatTensor)
-
-    mixed_x = lam.view(batch_size, 1, 1, 1) * x + (1 - lam).view(batch_size, 1, 1, 1) * x[index, :]
-    mixed_y = lam.view(batch_size, 1) * y + (1 - lam).view(batch_size, 1) * y[index, :]
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    mixed_y = lam * y + (1 - lam) * y[index, :]
 
     return mixed_x, mixed_y
-#
-# class MixUpCallback(LearnerCallback):
-#     "Callback that creates the mixed-up input and target."
-#
-#     def __init__(self, learn: Learner, alpha: float = 0.4, stack_x: bool = False, stack_y: bool = True):
-#         super().__init__(learn)
-#         self.alpha, self.stack_x, self.stack_y = alpha, stack_x, stack_y
-#
-#     def on_train_begin(self, **kwargs):
-#         if self.stack_y: self.learn.loss_func = MixUpLoss(self.learn.loss_func)
-#
-#     def on_batch_begin(self, last_input, last_target, train, **kwargs):
-#         "Applies mixup to `last_input` and `last_target` if `train`."
-#         if not train: return
-#         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
-#         lambd = np.concatenate([lambd[:, None], 1 - lambd[:, None]], 1).max(1)
-#         lambd = last_input.new(lambd)
-#         shuffle = torch.randperm(last_target.size(0)).to(last_input.device)
-#         x1, y1 = last_input[shuffle], last_target[shuffle]
-#         if self.stack_x:
-#             new_input = [last_input, last_input[shuffle], lambd]
-#         else:
-#             new_input = (
-#                         last_input * lambd.view(lambd.size(0), 1, 1, 1) + x1 * (1 - lambd).view(lambd.size(0), 1, 1, 1))
-#         if self.stack_y:
-#             new_target = torch.cat([last_target[:, None].float(), y1[:, None].float(), lambd[:, None].float()], 1)
-#         else:
-#             if len(last_target.shape) == 2:
-#                 lambd = lambd.unsqueeze(1).float()
-#             new_target = last_target.float() * lambd + y1.float() * (1 - lambd)
-#         return {'last_input': new_input, 'last_target': new_target}
-#
-#     def on_train_end(self, **kwargs):
-#         if self.stack_y: self.learn.loss_func = self.learn.loss_func.get_old()
-#
-#
-# class MixUpLoss(nn.Module):
-#     "Adapt the loss function `crit` to go with mixup."
-#
-#     def __init__(self, crit, reduction='mean'):
-#         super().__init__()
-#         if hasattr(crit, 'reduction'):
-#             self.crit = crit
-#             self.old_red = crit.reduction
-#             setattr(self.crit, 'reduction', 'none')
-#         else:
-#             self.crit = partial(crit, reduction='none')
-#             self.old_crit = crit
-#         self.reduction = reduction
-#
-#     def forward(self, output, target):
-#         if len(target.size()) == 2:
-#             loss1, loss2 = self.crit(output, target[:, 0].long()), self.crit(output, target[:, 1].long())
-#             d = (loss1 * target[:, 2] + loss2 * (1 - target[:, 2])).mean()
-#         else:
-#             d = self.crit(output, target)
-#         if self.reduction == 'mean':
-#             return d.mean()
-#         elif self.reduction == 'sum':
-#             return d.sum()
-#         return d
-#
-#     def get_old(self):
-#         if hasattr(self, 'old_crit'):
-#             return self.old_crit
-#         elif hasattr(self, 'old_red'):
-#             setattr(self.crit, 'reduction', self.old_red)
-#             return self.crit

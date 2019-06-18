@@ -35,6 +35,11 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
 
 
+def worker_init_fn(worker_id):
+    seed = random.randint(0, 65535)
+    np.random.seed(seed)
+
+
 def save_data(filename, data):
     """Save variable into a pickle file
 

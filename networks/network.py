@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import math
+from util import *
+import pretrainedmodels
 
 
 def resnet18(pretrained=False, **kwargs):
@@ -45,9 +47,22 @@ def vgg11(**kwargs):
 
 
 def mobilenetv2(**kwargs):
+    # model = models.MobileNetV2(**kwargs)
+
+    # if pretrain is not None:
+    #     checkpoint = torch.load(pretrain)
+    #     model.load_state_dict(checkpoint['state_dict'])
+    #     print("=> loaded checkpoint {}, best_lwlrap: {:.4f} @ {}"
+    #           .format(pretrain, checkpoint['best_lwlrap'], checkpoint['epoch']))
     model = models.mobilenet_v2(**kwargs)
     model.classifier = nn.Sequential(
         nn.Dropout(0.2),
         nn.Linear(model.last_channel, 80),
     )
+    return model
+
+
+def dpn98_(**kwargs):
+    model = pretrainedmodels.models.dpn98(**kwargs)
+    model.last_linear = nn.Conv2d(2688, 80, kernel_size=1, bias=True)
     return model
